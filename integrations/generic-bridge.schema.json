@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Coding Academy Generic Bridge",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "timestamp", "sessionId"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "session.started",
+              "prompt.submitted",
+              "file.read",
+              "search.performed",
+              "file.edited",
+              "patch.applied",
+              "command.started",
+              "command.succeeded",
+              "command.failed",
+              "tests.failed",
+              "tests.passed",
+              "summary.written",
+              "task.completed",
+              "session.idle",
+              "session.ended"
+            ]
+          },
+          "timestamp": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "payload": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": ["events"],
+  "additionalProperties": false
+}

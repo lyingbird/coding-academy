@@ -9,6 +9,9 @@ import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
 import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
 import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 async function readStdinText(): Promise<string> {
   const chunks: string[] = [];
@@ -17,6 +20,33 @@ async function readStdinText(): Promise<string> {
     chunks.push(chunk);
   }
   return chunks.join("").replace(/^\uFEFF/, "").trim();
+}
+
+function findWorkspaceRoot(startDir: string): string {
+  let current = startDir;
+  while (true) {
+    if (existsSync(join(current, "pnpm-workspace.yaml")) || existsSync(join(current, ".git"))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
+}
+
+function resolveInputFile(filePath: string): string {
+  if (isAbsolute(filePath)) {
+    return filePath;
+  }
+
+  const fromCwd = resolve(process.cwd(), filePath);
+  if (existsSync(fromCwd)) {
+    return fromCwd;
+  }
+
+  return resolve(findWorkspaceRoot(process.cwd()), filePath);
 }
 
 function createEvent(sessionId: string, type: RawEvent["type"], payload?: Record<string, unknown>): RawEvent {
@@ -237,6 +267,56 @@ async function runIngest() {
   console.log(renderPersistedPanel(engine.snapshot));
 }
 
+async function runRelayFile() {
+  const adapter = parseAdapter(process.argv[3]);
+  const filePath = process.argv[4];
+
+  if (!adapter || !filePath) {
+    console.error("Use: pnpm relay:file <claude|codex|gemini|openai|qwen|generic> <json-file>");
+    process.exitCode = 1;
+    return;
+  }
+
+  const resolvedPath = resolveInputFile(filePath);
+  const raw = await readFile(resolvedPath, "utf8");
+  const payload = JSON.parse(raw.replace(/^\uFEFF/, "").trim());
+  const rawEvents = mapAdapterPayload(adapter, payload);
+  if (rawEvents.length === 0) {
+    console.log(`No raw events mapped for ${adapter}.`);
+    return;
+  }
+
+  const store = new FileStore();
+  const persisted = await store.load();
+  const engine = new AcademyEngine(persisted);
+
+  for (const rawEvent of rawEvents) {
+    engine.process(rawEvent);
+  }
+
+  await store.save(engine.snapshot);
+  console.log(renderPersistedPanel(engine.snapshot));
+}
+
+async function runAdapters() {
+  console.log("Supported adapters:");
+  console.log("- claude  => Claude Code hook payloads");
+  console.log("- codex   => Codex CLI bridge payloads");
+  console.log("- gemini  => Gemini CLI bridge payloads");
+  console.log("- openai  => OpenAI-compatible CLI bridge payloads");
+  console.log("- qwen    => Qwen / domestic coding CLI bridge payloads");
+  console.log("- generic => direct RawEvent arrays");
+  console.log();
+  console.log("Pipe JSON into one:");
+  console.log("- pnpm relay codex");
+  console.log("- pnpm relay gemini");
+  console.log("- pnpm relay openai");
+  console.log("- pnpm relay qwen");
+  console.log();
+  console.log("Or relay from a file:");
+  console.log("- pnpm relay:file codex integrations/codex.sample.json");
+}
+
 async function main() {
   const command = process.argv[2] ?? "demo";
   switch (command) {
@@ -262,6 +342,12 @@ async function main() {
     case "ingest":
     case "relay":
       await runIngest();
+      return;
+    case "relay-file":
+      await runRelayFile();
+      return;
+    case "adapters":
+      await runAdapters();
       return;
     default:
       console.error(`Unknown command: ${command}`);

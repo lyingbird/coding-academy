@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "academy": "./dist/index.js"
+    "academy": "./dist/index.js",
+    "academy-relay": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
@@ -15,7 +16,9 @@
     "strategy": "tsx src/index.ts strategy",
     "burst": "tsx src/index.ts burst",
     "ingest": "tsx src/index.ts ingest",
-    "relay": "tsx src/index.ts relay"
+    "relay": "tsx src/index.ts relay",
+    "relay-file": "tsx src/index.ts relay-file",
+    "adapters": "tsx src/index.ts adapters"
   },
   "dependencies": {
     "@academy/runtime": "workspace:*",

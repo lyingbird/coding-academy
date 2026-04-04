@@ -40,6 +40,8 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm watch`
 - `pnpm ingest`
 - `pnpm relay`
+- `pnpm relay:file`
+- `pnpm adapters`
 - `pnpm build`
 - `pnpm typecheck`
 - `pnpm plugin:build`
@@ -154,6 +156,21 @@ pnpm relay codex
 pnpm relay gemini
 pnpm relay openai
 pnpm relay qwen
+```
+
+Relay from saved files:
+
+```bash
+pnpm relay:file codex integrations/codex.sample.json
+pnpm relay:file gemini integrations/gemini.sample.json
+pnpm relay:file openai integrations/openai.sample.json
+pnpm relay:file qwen integrations/qwen.sample.json
+```
+
+Show supported adapter names:
+
+```bash
+pnpm adapters
 ```
 
 ## What Already Works

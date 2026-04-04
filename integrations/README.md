@@ -37,12 +37,37 @@ pnpm relay qwen
 pnpm relay generic
 ```
 
+Relay a saved payload file instead of piping stdin:
+
+```bash
+pnpm relay:file codex integrations/codex.sample.json
+pnpm relay:file gemini integrations/gemini.sample.json
+pnpm relay:file openai integrations/openai.sample.json
+pnpm relay:file qwen integrations/qwen.sample.json
+```
+
+List the supported adapters and bridge entry names:
+
+```bash
+pnpm adapters
+```
+
 ## Why This Shape
 
 - gameplay rules stay in one runtime
 - burst rewards stay consistent across platforms
 - new CLI support only needs an adapter, not a forked game
 - domestic tools can plug in through a JSON bridge first, then get native wrappers later
+
+## Generic JSON Bridge
+
+Use [generic-bridge.schema.json](D:\工作\CLI_GAMEPLAY\integrations\generic-bridge.schema.json) when a CLI cannot be wrapped natively yet.
+
+The rule is simple:
+
+- emit an `events` array of normalized `RawEvent` objects
+- pipe that JSON into `academy relay generic`
+- keep vendor specifics outside the runtime
 
 ## Suggested Rollout Order
 
