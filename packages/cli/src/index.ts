@@ -1,6 +1,7 @@
 import { AcademyEngine } from "@academy/runtime";
 import { FileStore } from "@academy/runtime";
 import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
+import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
 import type { PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 
@@ -118,6 +119,27 @@ async function runStrategy() {
   console.log(renderPersistedPanel(persisted));
 }
 
+async function runBurst() {
+  const store = new FileStore();
+  const persisted = await store.load();
+  const selected = parseStrategy(process.argv[3]);
+
+  if (selected) {
+    persisted.profile.strategy = selected;
+  }
+
+  const preview = previewBurst(persisted);
+  const result = performBurst(persisted);
+  await store.save(persisted);
+
+  console.log(renderPersistedPanel(persisted));
+  console.log();
+  console.log(renderBurstResult(result));
+  if (result.power > 0) {
+    console.log(`Spent effort tag: ${preview.effortTag}`);
+  }
+}
+
 async function runHook() {
   const input = await readStdinText();
   const hookPayload = JSON.parse(input);
@@ -152,6 +174,9 @@ async function main() {
       return;
     case "strategy":
       await runStrategy();
+      return;
+    case "burst":
+      await runBurst();
       return;
     case "hook":
       await runHook();

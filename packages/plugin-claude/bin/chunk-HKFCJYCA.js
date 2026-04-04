@@ -14,6 +14,18 @@ var CHEST_POOL = [
   "Lucky Test Feather",
   "Tiny Chest Key"
 ];
+function createBurstBank() {
+  return {
+    estimatedTokens: 0,
+    typedChars: 0,
+    prompts: 0,
+    reads: 0,
+    edits: 0,
+    validations: 0,
+    failures: 0,
+    victories: 0
+  };
+}
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
@@ -62,7 +74,8 @@ function createSession(sessionId) {
       victories: 0,
       rawEvents: 0,
       currentEnemy: "Unknown",
-      currentEnemyName: "Fog Mimic"
+      currentEnemyName: "Fog Mimic",
+      estimatedTokens: 0
     },
     lastEvents: []
   };
@@ -110,6 +123,21 @@ function classifyEnemy(rawEvent) {
       return "Unknown";
   }
 }
+function estimateTokens(rawEvent) {
+  const payload = rawEvent.payload ?? {};
+  const textParts = [
+    typeof payload.prompt === "string" ? payload.prompt : "",
+    typeof payload.summary === "string" ? payload.summary : "",
+    typeof payload.command === "string" ? payload.command : "",
+    typeof payload.target === "string" ? payload.target : "",
+    typeof payload.target_file === "string" ? payload.target_file : "",
+    typeof payload.file_path === "string" ? payload.file_path : "",
+    typeof payload.path === "string" ? payload.path : ""
+  ].join(" ");
+  const serializedPayload = JSON.stringify(payload);
+  const charCount = textParts.length + Math.min(serializedPayload.length, 400);
+  return Math.max(1, Math.ceil(charCount / 4));
+}
 function gainCharge(profile, amount) {
   profile.charge = Math.min(5, profile.charge + amount);
 }
@@ -134,6 +162,46 @@ function applyStrategyOnCleanHit(profile) {
       profile.combo += 1;
       profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
       break;
+  }
+}
+function updateBurstBank(bank, rawEvent, gameplayEvents) {
+  const payload = rawEvent.payload ?? {};
+  const estimated = estimateTokens(rawEvent);
+  bank.estimatedTokens += estimated;
+  bank.lastSummaryAt = rawEvent.timestamp;
+  if (typeof payload.prompt === "string") {
+    bank.typedChars += payload.prompt.length;
+  }
+  switch (rawEvent.type) {
+    case "prompt.submitted":
+      bank.prompts += 1;
+      break;
+    case "file.read":
+    case "search.performed":
+      bank.reads += 1;
+      break;
+    case "file.edited":
+    case "patch.applied":
+      bank.edits += 1;
+      break;
+    case "command.started":
+    case "command.succeeded":
+    case "command.failed":
+    case "tests.passed":
+    case "tests.failed":
+      bank.validations += 1;
+      break;
+  }
+  for (const event of gameplayEvents) {
+    if (event.type === "damage_taken") {
+      bank.failures += 1;
+    }
+    if (event.type === "victory") {
+      bank.victories += 1;
+      if (event.enemyName) {
+        bank.lastEnemyName = event.enemyName;
+      }
+    }
   }
 }
 function normalizeRawEvent(rawEvent) {
@@ -417,7 +485,8 @@ var AcademyEngine = class {
       profile: state?.profile ?? createDefaultProfile(),
       currentSession: state?.currentSession,
       activityLog: state?.activityLog ?? [],
-      monsterJournal: state?.monsterJournal ?? []
+      monsterJournal: state?.monsterJournal ?? [],
+      burstBank: state?.burstBank ?? createBurstBank()
     };
   }
   get snapshot() {
@@ -426,7 +495,9 @@ var AcademyEngine = class {
   process(rawEvent) {
     const session = this.state.currentSession && this.state.currentSession.id === rawEvent.sessionId ? this.state.currentSession : createSession(rawEvent.sessionId);
     session.stats.rawEvents += 1;
+    session.stats.estimatedTokens += estimateTokens(rawEvent);
     const gameplayEvents = normalizeRawEvent(rawEvent);
+    updateBurstBank(this.state.burstBank, rawEvent, gameplayEvents);
     for (const gameplayEvent of gameplayEvents) {
       applyEvent(this.state, this.state.profile, session, gameplayEvent);
     }
@@ -508,10 +579,19 @@ var FileStore = class {
           lastEvents: parsed.currentSession.lastEvents ?? []
         } : void 0,
         activityLog: parsed.activityLog ?? [],
-        monsterJournal: parsed.monsterJournal ?? []
+        monsterJournal: parsed.monsterJournal ?? [],
+        burstBank: {
+          ...createBurstBank(),
+          ...parsed.burstBank ?? {}
+        }
       };
     } catch {
-      return { profile: createDefaultProfile(), activityLog: [], monsterJournal: [] };
+      return {
+        profile: createDefaultProfile(),
+        activityLog: [],
+        monsterJournal: [],
+        burstBank: createBurstBank()
+      };
     }
   }
   async save(state) {
@@ -873,6 +953,15 @@ function renderVibeLoop(profile, session) {
   lines.push(border());
   return lines;
 }
+function renderBurstCache(state) {
+  const lines = [];
+  lines.push(border("Burst Cache"));
+  lines.push(row(`~${state.burstBank.estimatedTokens} tok | prompts ${state.burstBank.prompts} | edits ${state.burstBank.edits}`));
+  lines.push(row(`reads ${state.burstBank.reads} | checks ${state.burstBank.validations} | wins ${state.burstBank.victories}`));
+  lines.push(row(`Ready move: ${state.profile.strategy} burst`));
+  lines.push(border());
+  return lines;
+}
 function renderDuel(session) {
   const lines = [];
   lines.push(border("Current Duel"));
@@ -884,6 +973,7 @@ function renderDuel(session) {
   lines.push(row(`Enemy ${session.enemyName}`));
   lines.push(row(`Reads ${session.stats.scoutingCount} | Attacks ${session.stats.attackCount} | Hits ${session.stats.hitCount}`));
   lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories}`));
+  lines.push(row(`Session effort ~${session.stats.estimatedTokens} tok`));
   lines.push(border());
   return lines;
 }
@@ -939,6 +1029,7 @@ function renderPersistedPanel(state) {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
+    ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
     ...renderSouvenirs(state.profile),

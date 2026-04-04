@@ -93,6 +93,22 @@ pnpm strategy rush
 - `rush`
   - turns charge into combo spikes for a hotter payoff
 
+Cash out a quiet vibecoding stretch when you feel like checking in:
+
+```bash
+pnpm burst
+pnpm burst cozy
+pnpm burst flow
+pnpm burst rush
+```
+
+`burst` turns your background effort into a short release card:
+
+- estimated token spend
+- prompt / edit / validation mix
+- a release result based on your chosen stance
+- XP, clues, combo, and possible chest payout
+
 ## What Already Works
 
 - the local demo can simulate a full scout -> damage -> victory loop

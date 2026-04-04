@@ -1,4 +1,5 @@
 import type {
+  BurstResult,
   CompanionState,
   EnemyCategory,
   EngineUpdate,
@@ -197,6 +198,16 @@ function renderVibeLoop(profile: HeroProfile, session?: SessionState): string[] 
   return lines;
 }
 
+function renderBurstCache(state: PersistedState): string[] {
+  const lines: string[] = [];
+  lines.push(border("Burst Cache"));
+  lines.push(row(`~${state.burstBank.estimatedTokens} tok | prompts ${state.burstBank.prompts} | edits ${state.burstBank.edits}`));
+  lines.push(row(`reads ${state.burstBank.reads} | checks ${state.burstBank.validations} | wins ${state.burstBank.victories}`));
+  lines.push(row(`Ready move: ${state.profile.strategy} burst`));
+  lines.push(border());
+  return lines;
+}
+
 function renderDuel(session?: SessionState): string[] {
   const lines: string[] = [];
   lines.push(border("Current Duel"));
@@ -210,6 +221,7 @@ function renderDuel(session?: SessionState): string[] {
   lines.push(row(`Enemy ${session.enemyName}`));
   lines.push(row(`Reads ${session.stats.scoutingCount} | Attacks ${session.stats.attackCount} | Hits ${session.stats.hitCount}`));
   lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories}`));
+  lines.push(row(`Session effort ~${session.stats.estimatedTokens} tok`));
   lines.push(border());
   return lines;
 }
@@ -275,6 +287,7 @@ export function renderPersistedPanel(state: PersistedState): string {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
+    ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
     ...renderSouvenirs(state.profile),
@@ -290,4 +303,21 @@ export function renderUpdatePanel(update: EngineUpdate, state: PersistedState): 
     ? `${summarizeEvent(latestGameplay)}${latestGameplay.rewardLabel ? ` · ${latestGameplay.rewardLabel}` : ""}`
     : "Quiet moment";
   return `${renderPersistedPanel(state)}\n${headline}`;
+}
+
+export function renderBurstResult(result: BurstResult): string {
+  const lines: string[] = [];
+  lines.push(border("Burst Release"));
+  if (result.power === 0) {
+    lines.push(row("No fresh vibe is stored yet."));
+    lines.push(row("Go do a little vibecoding, then come back and burst."));
+    lines.push(border());
+    return lines.join("\n");
+  }
+  lines.push(row(`${result.mode} release | ${result.grade} | ${result.effortTag}`));
+  lines.push(row(`Spent ~${result.estimatedTokens} tok and ${result.chargeSpent} charge`));
+  lines.push(row(`XP +${result.xpGain} | Focus +${result.focusGain} | Clues +${result.cluesGain}`));
+  lines.push(row(`Combo +${result.comboGain}${result.chestItem ? ` | Chest ${result.chestItem}` : ""}`));
+  lines.push(border());
+  return lines.join("\n");
 }

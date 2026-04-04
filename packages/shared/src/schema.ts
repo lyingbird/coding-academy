@@ -100,6 +100,7 @@ export interface SessionStats {
   rawEvents: number;
   currentEnemy: EnemyCategory;
   currentEnemyName: string;
+  estimatedTokens: number;
 }
 
 export interface HeroProfile {
@@ -144,6 +145,33 @@ export interface MonsterJournalEntry {
   lastSeenAt: string;
 }
 
+export interface BurstBank {
+  estimatedTokens: number;
+  typedChars: number;
+  prompts: number;
+  reads: number;
+  edits: number;
+  validations: number;
+  failures: number;
+  victories: number;
+  lastEnemyName?: string;
+  lastSummaryAt?: string;
+}
+
+export interface BurstResult {
+  mode: StrategyMode;
+  power: number;
+  grade: "Quiet" | "Warm" | "Hot" | "Blazing";
+  effortTag: "exploration-heavy" | "patch-heavy" | "validation-heavy" | "mixed";
+  xpGain: number;
+  focusGain: number;
+  cluesGain: number;
+  comboGain: number;
+  chestItem?: string;
+  estimatedTokens: number;
+  chargeSpent: number;
+}
+
 export interface EngineUpdate {
   rawEvent: RawEvent;
   gameplayEvents: GameplayEvent[];
@@ -156,4 +184,5 @@ export interface PersistedState {
   currentSession?: SessionState;
   activityLog: GameplayEvent[];
   monsterJournal: MonsterJournalEntry[];
+  burstBank: BurstBank;
 }

@@ -12,7 +12,8 @@
     "status": "tsx src/index.ts status",
     "panel": "tsx src/index.ts panel",
     "watch": "tsx src/index.ts watch",
-    "strategy": "tsx src/index.ts strategy"
+    "strategy": "tsx src/index.ts strategy",
+    "burst": "tsx src/index.ts burst"
   },
   "dependencies": {
     "@academy/runtime": "workspace:*",

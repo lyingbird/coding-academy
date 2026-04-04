@@ -2,8 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { PersistedState } from "@academy/shared";
-import { createDefaultProfile } from "./engine.js";
-import { createSession } from "./engine.js";
+import { createBurstBank, createDefaultProfile, createSession } from "./engine.js";
 
 function findWorkspaceRoot(startDir: string): string {
   let current = startDir;
@@ -60,9 +59,18 @@ export class FileStore {
           : undefined,
         activityLog: parsed.activityLog ?? [],
         monsterJournal: parsed.monsterJournal ?? [],
+        burstBank: {
+          ...createBurstBank(),
+          ...(parsed.burstBank ?? {}),
+        },
       };
     } catch {
-      return { profile: createDefaultProfile(), activityLog: [], monsterJournal: [] };
+      return {
+        profile: createDefaultProfile(),
+        activityLog: [],
+        monsterJournal: [],
+        burstBank: createBurstBank(),
+      };
     }
   }
 

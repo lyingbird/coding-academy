@@ -1,4 +1,6 @@
 import {
+  type BurstBank,
+  type BurstResult,
   type CompanionState,
   type EnemyCategory,
   type EngineUpdate,
@@ -10,6 +12,7 @@ import {
   type ProfessionType,
   type RawEvent,
   type SessionState,
+  type StrategyMode,
 } from "@academy/shared";
 
 const LEVEL_XP = 100;
@@ -29,6 +32,19 @@ const CHEST_POOL = [
   "Lucky Test Feather",
   "Tiny Chest Key",
 ];
+
+export function createBurstBank(): BurstBank {
+  return {
+    estimatedTokens: 0,
+    typedChars: 0,
+    prompts: 0,
+    reads: 0,
+    edits: 0,
+    validations: 0,
+    failures: 0,
+    victories: 0,
+  };
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -81,6 +97,7 @@ export function createSession(sessionId: string): SessionState {
       rawEvents: 0,
       currentEnemy: "Unknown",
       currentEnemyName: "Fog Mimic",
+      estimatedTokens: 0,
     },
     lastEvents: [],
   };
@@ -129,6 +146,13 @@ function rolledChestItem(rawEvent: RawEvent): string {
   return CHEST_POOL[index] ?? CHEST_POOL[0];
 }
 
+function rolledBurstChestItem(bank: BurstBank, strategy: StrategyMode): string {
+  const index = hashText(
+    `${bank.estimatedTokens}:${bank.prompts}:${bank.edits}:${bank.validations}:${strategy}:burst`,
+  ) % CHEST_POOL.length;
+  return CHEST_POOL[index] ?? CHEST_POOL[0];
+}
+
 function classifyEnemy(rawEvent: RawEvent): EnemyCategory {
   switch (rawEvent.type) {
     case "tests.failed":
@@ -143,6 +167,23 @@ function classifyEnemy(rawEvent: RawEvent): EnemyCategory {
     default:
       return "Unknown";
   }
+}
+
+function estimateTokens(rawEvent: RawEvent): number {
+  const payload = rawEvent.payload ?? {};
+  const textParts = [
+    typeof payload.prompt === "string" ? payload.prompt : "",
+    typeof payload.summary === "string" ? payload.summary : "",
+    typeof payload.command === "string" ? payload.command : "",
+    typeof payload.target === "string" ? payload.target : "",
+    typeof payload.target_file === "string" ? payload.target_file : "",
+    typeof payload.file_path === "string" ? payload.file_path : "",
+    typeof payload.path === "string" ? payload.path : "",
+  ].join(" ");
+
+  const serializedPayload = JSON.stringify(payload);
+  const charCount = textParts.length + Math.min(serializedPayload.length, 400);
+  return Math.max(1, Math.ceil(charCount / 4));
 }
 
 function gainCharge(profile: HeroProfile, amount: number) {
@@ -173,6 +214,199 @@ function applyStrategyOnCleanHit(profile: HeroProfile) {
       profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
       break;
   }
+}
+
+function updateBurstBank(bank: BurstBank, rawEvent: RawEvent, gameplayEvents: GameplayEvent[]) {
+  const payload = rawEvent.payload ?? {};
+  const estimated = estimateTokens(rawEvent);
+  bank.estimatedTokens += estimated;
+  bank.lastSummaryAt = rawEvent.timestamp;
+
+  if (typeof payload.prompt === "string") {
+    bank.typedChars += payload.prompt.length;
+  }
+
+  switch (rawEvent.type) {
+    case "prompt.submitted":
+      bank.prompts += 1;
+      break;
+    case "file.read":
+    case "search.performed":
+      bank.reads += 1;
+      break;
+    case "file.edited":
+    case "patch.applied":
+      bank.edits += 1;
+      break;
+    case "command.started":
+    case "command.succeeded":
+    case "command.failed":
+    case "tests.passed":
+    case "tests.failed":
+      bank.validations += 1;
+      break;
+  }
+
+  for (const event of gameplayEvents) {
+    if (event.type === "damage_taken") {
+      bank.failures += 1;
+    }
+    if (event.type === "victory") {
+      bank.victories += 1;
+      if (event.enemyName) {
+        bank.lastEnemyName = event.enemyName;
+      }
+    }
+  }
+}
+
+function burstEffortTag(bank: BurstBank): BurstResult["effortTag"] {
+  const exploration = bank.reads;
+  const patching = bank.edits;
+  const validation = bank.validations;
+  const maxValue = Math.max(exploration, patching, validation);
+
+  if (maxValue === 0) {
+    return "mixed";
+  }
+  if (exploration === maxValue && exploration > patching && exploration > validation) {
+    return "exploration-heavy";
+  }
+  if (patching === maxValue && patching > exploration && patching > validation) {
+    return "patch-heavy";
+  }
+  if (validation === maxValue && validation > exploration && validation > patching) {
+    return "validation-heavy";
+  }
+  return "mixed";
+}
+
+function burstGrade(power: number): BurstResult["grade"] {
+  if (power >= 12) {
+    return "Blazing";
+  }
+  if (power >= 8) {
+    return "Hot";
+  }
+  if (power >= 4) {
+    return "Warm";
+  }
+  return "Quiet";
+}
+
+function burstPower(profile: HeroProfile, bank: BurstBank): number {
+  const tokenPower = Math.floor(bank.estimatedTokens / 120);
+  const activityPower = bank.prompts + bank.reads + bank.edits + bank.validations;
+  const victoryPower = bank.victories * 2;
+  const chargePower = profile.charge;
+  return Math.max(1, tokenPower + Math.floor(activityPower / 3) + victoryPower + chargePower);
+}
+
+export function previewBurst(state: PersistedState): BurstResult {
+  const mode = state.profile.strategy;
+  const hasWork =
+    state.burstBank.estimatedTokens > 0 ||
+    state.burstBank.prompts > 0 ||
+    state.burstBank.reads > 0 ||
+    state.burstBank.edits > 0 ||
+    state.burstBank.validations > 0 ||
+    state.burstBank.victories > 0;
+
+  if (!hasWork) {
+    return {
+      mode,
+      power: 0,
+      grade: "Quiet",
+      effortTag: "mixed",
+      xpGain: 0,
+      focusGain: 0,
+      cluesGain: 0,
+      comboGain: 0,
+      estimatedTokens: 0,
+      chargeSpent: 0,
+    };
+  }
+
+  const power = burstPower(state.profile, state.burstBank);
+  const grade = burstGrade(power);
+  const effortTag = burstEffortTag(state.burstBank);
+  const chargeSpent = Math.min(state.profile.charge, Math.max(1, Math.ceil(power / 3)));
+
+  let xpGain = power * 2;
+  let focusGain = 0;
+  let cluesGain = 0;
+  let comboGain = 0;
+  let chestItem: string | undefined;
+
+  switch (mode) {
+    case "Cozy":
+      xpGain += 2;
+      focusGain = 1;
+      break;
+    case "Flow":
+      focusGain = Math.max(1, Math.ceil(power / 3));
+      cluesGain = Math.max(1, Math.ceil(power / 3));
+      break;
+    case "Rush":
+      comboGain = Math.max(1, Math.ceil(power / 3));
+      if (power >= 6) {
+        chestItem = rolledBurstChestItem(state.burstBank, mode);
+      }
+      break;
+  }
+
+  if (!chestItem && power >= 10) {
+    chestItem = rolledBurstChestItem(state.burstBank, mode);
+  }
+
+  return {
+    mode,
+    power,
+    grade,
+    effortTag,
+    xpGain,
+    focusGain,
+    cluesGain,
+    comboGain,
+    chestItem,
+    estimatedTokens: state.burstBank.estimatedTokens,
+    chargeSpent,
+  };
+}
+
+export function performBurst(state: PersistedState): BurstResult {
+  const result = previewBurst(state);
+  if (result.power === 0) {
+    return result;
+  }
+  state.profile.xp += result.xpGain;
+  state.profile.focus = Math.min(9, state.profile.focus + result.focusGain);
+  state.profile.clues += result.cluesGain;
+  state.profile.combo += result.comboGain;
+  state.profile.maxCombo = Math.max(state.profile.maxCombo, state.profile.combo);
+  spendCharge(state.profile, result.chargeSpent);
+
+  if (result.mode === "Cozy") {
+    state.profile.hp = Math.min(state.profile.maxHp, state.profile.hp + Math.max(1, Math.ceil(result.power / 4)));
+  }
+
+  if (result.chestItem) {
+    state.profile.chestsOpened += 1;
+    state.profile.lastChestItem = result.chestItem;
+    state.profile.souvenirs = [...state.profile.souvenirs, result.chestItem].slice(-12);
+  }
+
+  while (state.profile.xp >= LEVEL_XP) {
+    state.profile.xp -= LEVEL_XP;
+    state.profile.level += 1;
+    state.profile.maxHp += 2;
+    state.profile.hp = state.profile.maxHp;
+    state.profile.state = "LevelUp";
+    state.profile.mood = "Proud";
+  }
+
+  state.burstBank = createBurstBank();
+  return result;
 }
 
 export function normalizeRawEvent(rawEvent: RawEvent): GameplayEvent[] {
@@ -471,6 +705,7 @@ export class AcademyEngine {
       currentSession: state?.currentSession,
       activityLog: state?.activityLog ?? [],
       monsterJournal: state?.monsterJournal ?? [],
+      burstBank: state?.burstBank ?? createBurstBank(),
     };
   }
 
@@ -485,7 +720,9 @@ export class AcademyEngine {
         : createSession(rawEvent.sessionId);
 
     session.stats.rawEvents += 1;
+    session.stats.estimatedTokens += estimateTokens(rawEvent);
     const gameplayEvents = normalizeRawEvent(rawEvent);
+    updateBurstBank(this.state.burstBank, rawEvent, gameplayEvents);
 
     for (const gameplayEvent of gameplayEvents) {
       applyEvent(this.state, this.state.profile, session, gameplayEvent);

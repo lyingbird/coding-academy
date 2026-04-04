@@ -12,6 +12,7 @@
     "panel": "pnpm --filter @academy/cli panel",
     "watch": "pnpm --filter @academy/cli watch",
     "strategy": "pnpm --filter @academy/cli strategy",
+    "burst": "pnpm --filter @academy/cli burst",
     "plugin:build": "pnpm --filter @academy/plugin-claude build",
     "plugin:bundle": "node ./scripts/bundle-plugin.mjs",
     "plugin:validate": "claude plugin validate . && claude plugin validate ./plugins/coding-academy",
