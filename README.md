@@ -48,7 +48,7 @@ claude plugin marketplace add . && claude plugin install coding-academy@coding-a
 From GitHub:
 
 ```bash
-claude plugin marketplace add OWNER/REPO --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy
+claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy
 ```
 
 Quick local dev run:
@@ -77,3 +77,7 @@ claude --plugin-dir ./plugins/coding-academy
 Cute before deep.
 
 The companion should be fun and easy to keep running every day before it becomes mechanically complex.
+
+## Repository
+
+- GitHub: `https://github.com/lyingbird/coding-academy`

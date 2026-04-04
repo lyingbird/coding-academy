@@ -2,7 +2,7 @@
   "extraKnownMarketplaces": {
     "coding-academy": {
       "source": "github",
-      "repo": "OWNER/REPO"
+      "repo": "lyingbird/coding-academy"
     }
   },
   "enabledPlugins": {
