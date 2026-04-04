@@ -4,6 +4,7 @@ import type {
   EngineUpdate,
   GameplayEvent,
   HeroProfile,
+  MonsterJournalEntry,
   PersistedState,
   SessionState,
 } from "@academy/shared";
@@ -67,8 +68,7 @@ function sessionHeadline(session?: SessionState): string {
     return "No active quest. Tiny hero is waiting.";
   }
 
-  const shortSessionId = session.id.length > 16 ? session.id.slice(-16) : session.id;
-  return `Quest ${shortSessionId} | ${session.state} | ${enemyGlyphByCategory[session.stats.currentEnemy]}`;
+  return `${session.state} | ${session.enemyName} ${enemyGlyphByCategory[session.stats.currentEnemy]}`;
 }
 
 function summarizeEvent(event: GameplayEvent): string {
@@ -78,23 +78,23 @@ function summarizeEvent(event: GameplayEvent): string {
     case "scouting":
       return "Scouting code paths and clues";
     case "enemy_spotted":
-      return "A strange bug peeks out";
+      return `Spotted ${event.enemyName ?? "a sneaky enemy"}`;
     case "elite_encounter":
-      return "An elite obstacle steps in";
+      return `${event.enemyName ?? "An elite foe"} blocks the path`;
     case "attack":
-      return "Wind-up attack on the current problem";
+      return `Charged at ${event.enemyName ?? "the problem"}`;
     case "hit_landed":
-      return "Patch landed cleanly";
+      return `Patch landed on ${event.enemyName ?? "the target"}`;
     case "damage_taken":
-      return `Took a hit from ${enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
+      return `Took a hit from ${event.enemyName ?? enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
     case "enemy_weakened":
-      return "Validation weakened the enemy";
+      return `${event.enemyName ?? "The enemy"} is cracking`;
     case "victory":
-      return `Victory over ${enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
+      return `Victory over ${event.enemyName ?? enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
     case "fatigue":
       return "Momentum slowed down";
     case "loot_collected":
-      return "Filed notes and pocketed loot";
+      return event.chestItem ? `Opened chest: ${event.chestItem}` : "Filed notes and pocketed loot";
     case "rest":
       return "Taking a short rest";
     default:
@@ -109,23 +109,24 @@ function renderHeroArt(state: CompanionState): string[] {
 function renderOverview(profile: HeroProfile, session?: SessionState): string[] {
   const art = renderHeroArt(profile.state);
   const lines: string[] = [];
-  lines.push(border("Tiny Hero"));
+  lines.push(border("Adventure"));
   lines.push(row(moodLine(profile)));
   lines.push(row(progressBar("HP", profile.hp, profile.maxHp)));
   lines.push(row(progressBar("XP", profile.xp, 100)));
-  lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Souvenirs ${profile.souvenirs.length}`));
+  lines.push(row(`Combo x${profile.combo} | Focus ${profile.focus} | Clues ${profile.clues}`));
+  lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Chests ${profile.chestsOpened}`));
   lines.push(row(sessionHeadline(session)));
   lines.push(row());
-  lines.push(row(`${art[0]}  State ${profile.state}`));
-  lines.push(row(`${art[1]}  Profession ${profile.dominantProfession}`));
+  lines.push(row(`${art[0]}  Hero ${profile.name}`));
+  lines.push(row(`${art[1]}  Job ${profile.dominantProfession}`));
   lines.push(row(`${art[2]}  Mood ${profile.mood}`));
   lines.push(border());
   return lines;
 }
 
-function renderSessionStats(session?: SessionState): string[] {
+function renderDuel(session?: SessionState): string[] {
   const lines: string[] = [];
-  lines.push(border("Battle Feed"));
+  lines.push(border("Current Duel"));
 
   if (!session) {
     lines.push(row("No live battle. Start Codex or Claude Code."));
@@ -133,8 +134,9 @@ function renderSessionStats(session?: SessionState): string[] {
     return lines;
   }
 
+  lines.push(row(`Enemy ${session.enemyName}`));
   lines.push(row(`Reads ${session.stats.scoutingCount} | Attacks ${session.stats.attackCount} | Hits ${session.stats.hitCount}`));
-  lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories} | Raw ${session.stats.rawEvents}`));
+  lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories}`));
   lines.push(border());
   return lines;
 }
@@ -159,17 +161,38 @@ function renderRecentFeed(events: GameplayEvent[]): string[] {
 
 function renderSouvenirs(profile: HeroProfile): string[] {
   const lines: string[] = [];
-  lines.push(border("Shelf"));
+  lines.push(border("Loot"));
 
   const latest = profile.souvenirs.slice(-3);
   if (latest.length === 0) {
-    lines.push(row("Empty shelf for now. First victory token awaits."));
+    lines.push(row("Bag is light. First tiny chest still waiting."));
     lines.push(border());
     return lines;
   }
 
+  if (profile.lastChestItem) {
+    lines.push(row(`Latest chest: ${profile.lastChestItem}`));
+  }
   for (const item of latest) {
     lines.push(row(`- ${item}`));
+  }
+  lines.push(border());
+  return lines;
+}
+
+function renderJournal(entries: MonsterJournalEntry[]): string[] {
+  const lines: string[] = [];
+  lines.push(border("Monster Journal"));
+
+  const latest = entries.slice(0, 3);
+  if (latest.length === 0) {
+    lines.push(row("No monsters logged yet."));
+    lines.push(border());
+    return lines;
+  }
+
+  for (const entry of latest) {
+    lines.push(row(`- ${entry.name} x${entry.defeats}`));
   }
   lines.push(border());
   return lines;
@@ -178,9 +201,10 @@ function renderSouvenirs(profile: HeroProfile): string[] {
 export function renderPersistedPanel(state: PersistedState): string {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
-    ...renderSessionStats(state.currentSession),
+    ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
     ...renderSouvenirs(state.profile),
+    ...renderJournal(state.monsterJournal),
   ];
 
   return lines.join("\n");
@@ -188,6 +212,8 @@ export function renderPersistedPanel(state: PersistedState): string {
 
 export function renderUpdatePanel(update: EngineUpdate, state: PersistedState): string {
   const latestGameplay = update.gameplayEvents.at(-1);
-  const headline = latestGameplay ? summarizeEvent(latestGameplay) : "Quiet moment";
+  const headline = latestGameplay
+    ? `${summarizeEvent(latestGameplay)}${latestGameplay.rewardLabel ? ` · ${latestGameplay.rewardLabel}` : ""}`
+    : "Quiet moment";
   return `${renderPersistedPanel(state)}\n${headline}`;
 }

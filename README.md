@@ -8,6 +8,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - edits and patches become attacks
 - failed checks become enemy hits
 - completed tasks become victories, streaks, and souvenirs
+- combos, clues, tiny chests, and monster journal entries keep the feedback loop hot
 
 ## Project Layout
 
@@ -62,6 +63,7 @@ claude --plugin-dir ./plugins/coding-academy
 - the local demo can simulate a full scout -> damage -> victory loop
 - state persists in `.academy/state.json`
 - `pnpm status` renders a lightweight terminal companion panel by default
+- the hero now tracks combo, focus, clues, tiny chests, and a small monster journal
 - Claude-style hook payloads can be ingested by:
   - `packages/plugin-claude/bin/academy-hook.js`
 - a shareable plugin is synced into the repo at:

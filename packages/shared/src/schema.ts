@@ -79,9 +79,12 @@ export interface GameplayEvent {
   timestamp: string;
   sessionId: string;
   enemyCategory?: EnemyCategory;
+  enemyName?: string;
   professionSignals?: Partial<Record<ProfessionType, number>>;
   xpReward?: number;
   note?: string;
+  rewardLabel?: string;
+  chestItem?: string;
 }
 
 export interface SessionStats {
@@ -92,6 +95,7 @@ export interface SessionStats {
   victories: number;
   rawEvents: number;
   currentEnemy: EnemyCategory;
+  currentEnemyName: string;
 }
 
 export interface HeroProfile {
@@ -108,6 +112,12 @@ export interface HeroProfile {
   state: CompanionState;
   lastStateChangedAt: string;
   mood: "Calm" | "Focused" | "Tense" | "Hurt" | "Proud";
+  combo: number;
+  maxCombo: number;
+  focus: number;
+  clues: number;
+  chestsOpened: number;
+  lastChestItem?: string;
 }
 
 export interface SessionState {
@@ -116,8 +126,16 @@ export interface SessionState {
   lastUpdatedAt: string;
   state: CompanionState;
   enemyCategory: EnemyCategory;
+  enemyName: string;
   stats: SessionStats;
   lastEvents: GameplayEvent[];
+}
+
+export interface MonsterJournalEntry {
+  name: string;
+  category: EnemyCategory;
+  defeats: number;
+  lastSeenAt: string;
 }
 
 export interface EngineUpdate {
@@ -131,4 +149,5 @@ export interface PersistedState {
   profile: HeroProfile;
   currentSession?: SessionState;
   activityLog: GameplayEvent[];
+  monsterJournal: MonsterJournalEntry[];
 }

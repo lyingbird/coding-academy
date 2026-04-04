@@ -44,7 +44,7 @@ One-line local install from the repo root:
 
 Recommended GitHub install after publishing:
 
-- `claude plugin marketplace add OWNER/REPO --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy`
+- `claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy`
 
 Bundled local marketplace path:
 

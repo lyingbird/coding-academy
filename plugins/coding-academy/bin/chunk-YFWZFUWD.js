@@ -1,5 +1,19 @@
 // ../runtime/src/engine.ts
 var LEVEL_XP = 100;
+var ENEMY_NAME_POOL = {
+  Bug: ["Null Pointer Wisp", "Syntax Slime", "Stack Trace Imp"],
+  TestFailure: ["Red Test Bat", "Flaky Slime", "Assertion Crow"],
+  LegacyMonster: ["Legacy Golem", "Cobweb Troll", "Dusty Module Giant"],
+  RefactorBoss: ["Refactor Ogre", "Merge Hydra", "Broken Path Dragon"],
+  Unknown: ["Fog Mimic", "Quiet Gremlin", "Shadow TODO"]
+};
+var CHEST_POOL = [
+  "Victory Token",
+  "Debug Ribbon",
+  "Clean Patch Medal",
+  "Lucky Test Feather",
+  "Tiny Chest Key"
+];
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
@@ -22,7 +36,12 @@ function createDefaultProfile(name = "Tiny Hero") {
     dominantProfession: "Debugger",
     state: "Idle",
     lastStateChangedAt: nowIso(),
-    mood: "Calm"
+    mood: "Calm",
+    combo: 0,
+    maxCombo: 0,
+    focus: 0,
+    clues: 0,
+    chestsOpened: 0
   };
 }
 function createSession(sessionId) {
@@ -32,6 +51,7 @@ function createSession(sessionId) {
     lastUpdatedAt: nowIso(),
     state: "Idle",
     enemyCategory: "Unknown",
+    enemyName: "Fog Mimic",
     stats: {
       scoutingCount: 0,
       attackCount: 0,
@@ -39,7 +59,8 @@ function createSession(sessionId) {
       damageCount: 0,
       victories: 0,
       rawEvents: 0,
-      currentEnemy: "Unknown"
+      currentEnemy: "Unknown",
+      currentEnemyName: "Fog Mimic"
     },
     lastEvents: []
   };
@@ -54,6 +75,23 @@ function pushEvent(events, rawEvent, type, options = {}) {
     sessionId: rawEvent.sessionId,
     ...options
   });
+}
+function hashText(input) {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = hash * 31 + input.charCodeAt(index) >>> 0;
+  }
+  return hash;
+}
+function namedEnemy(category, rawEvent) {
+  const pool = ENEMY_NAME_POOL[category];
+  const payloadSeed = typeof rawEvent.payload?.target === "string" ? rawEvent.payload.target : typeof rawEvent.payload?.command === "string" ? rawEvent.payload.command : rawEvent.type;
+  const index = hashText(`${rawEvent.sessionId}:${payloadSeed}:${category}`) % pool.length;
+  return pool[index] ?? ENEMY_NAME_POOL.Unknown[0];
+}
+function rolledChestItem(rawEvent) {
+  const index = hashText(`${rawEvent.sessionId}:${rawEvent.type}:chest`) % CHEST_POOL.length;
+  return CHEST_POOL[index] ?? CHEST_POOL[0];
 }
 function classifyEnemy(rawEvent) {
   switch (rawEvent.type) {
@@ -75,74 +113,104 @@ function normalizeRawEvent(rawEvent) {
   const payload = rawEvent.payload ?? {};
   switch (rawEvent.type) {
     case "prompt.submitted":
-      pushEvent(events, rawEvent, "quest_started", { xpReward: 1 });
+      pushEvent(events, rawEvent, "quest_started", { xpReward: 1, rewardLabel: "Quest On" });
       break;
     case "session.started":
       break;
     case "file.read":
     case "search.performed":
       pushEvent(events, rawEvent, "scouting", {
-        professionSignals: { Debugger: 1 }
+        professionSignals: { Debugger: 1 },
+        rewardLabel: "Clue +1",
+        note: "Found a clue"
       });
       break;
     case "file.edited":
       pushEvent(events, rawEvent, "attack", {
         enemyCategory: classifyEnemy(rawEvent),
+        enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
         professionSignals: { Builder: 1, Refactorer: 1 },
-        xpReward: 2
+        xpReward: 2,
+        rewardLabel: "Focus Spent"
       });
       break;
     case "patch.applied":
       pushEvent(events, rawEvent, "hit_landed", {
         enemyCategory: classifyEnemy(rawEvent),
+        enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
         professionSignals: { Builder: 1, Refactorer: 2 },
-        xpReward: 3
+        xpReward: 3,
+        rewardLabel: "Combo Up"
       });
       break;
     case "command.started":
-      pushEvent(events, rawEvent, "attack", {
-        professionSignals: { Debugger: 1 }
-      });
+      if (payload.majorCheck === true) {
+        pushEvent(events, rawEvent, "elite_encounter", {
+          enemyCategory: "RefactorBoss",
+          enemyName: namedEnemy("RefactorBoss", rawEvent),
+          note: "Trial incoming"
+        });
+      } else {
+        pushEvent(events, rawEvent, "enemy_spotted", {
+          enemyCategory: "Bug",
+          enemyName: namedEnemy("Bug", rawEvent),
+          note: "Enemy spotted"
+        });
+      }
       break;
     case "command.failed":
     case "tests.failed":
       pushEvent(events, rawEvent, "damage_taken", {
         enemyCategory: classifyEnemy(rawEvent),
-        professionSignals: { Debugger: 1 }
+        enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
+        professionSignals: { Debugger: 1 },
+        note: "Enemy hit back"
       });
       break;
     case "command.succeeded":
     case "tests.passed":
       pushEvent(events, rawEvent, "enemy_weakened", {
         enemyCategory: classifyEnemy(rawEvent),
+        enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
         professionSignals: { Debugger: 1 },
-        xpReward: 4
+        xpReward: 4,
+        rewardLabel: "Combo Up"
       });
       if (payload.majorCheck === true) {
         pushEvent(events, rawEvent, "victory", {
           enemyCategory: classifyEnemy(rawEvent),
+          enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
           professionSignals: { Debugger: 1 },
           xpReward: 6,
-          note: "Major validation passed"
+          note: "Trial cleared",
+          rewardLabel: "Tiny Chest",
+          chestItem: rolledChestItem(rawEvent)
         });
       }
       break;
     case "summary.written":
       pushEvent(events, rawEvent, "loot_collected", {
         professionSignals: { Archivist: 2 },
-        xpReward: 3
+        xpReward: 3,
+        rewardLabel: "Loot Secured",
+        note: "Filed the loot"
       });
       break;
     case "task.completed":
       pushEvent(events, rawEvent, "victory", {
         enemyCategory: classifyEnemy(rawEvent),
+        enemyName: namedEnemy(classifyEnemy(rawEvent), rawEvent),
         professionSignals: { Builder: 1, Archivist: 1 },
-        xpReward: 10
+        xpReward: 10,
+        rewardLabel: "Tiny Chest",
+        chestItem: rolledChestItem(rawEvent)
       });
       pushEvent(events, rawEvent, "rest");
       break;
     case "session.idle":
-      pushEvent(events, rawEvent, "fatigue");
+      pushEvent(events, rawEvent, "fatigue", {
+        note: "Momentum slipping"
+      });
       break;
     case "session.ended":
       break;
@@ -198,7 +266,25 @@ function applyRewards(profile, event) {
     profile.mood = "Proud";
   }
 }
-function applyEvent(profile, session, event) {
+function updateMonsterJournal(state, event) {
+  if (event.type !== "victory" || !event.enemyName || !event.enemyCategory) {
+    return;
+  }
+  const existing = state.monsterJournal.find((entry2) => entry2.name === event.enemyName);
+  if (existing) {
+    existing.defeats += 1;
+    existing.lastSeenAt = event.timestamp;
+    return;
+  }
+  const entry = {
+    name: event.enemyName,
+    category: event.enemyCategory,
+    defeats: 1,
+    lastSeenAt: event.timestamp
+  };
+  state.monsterJournal = [entry, ...state.monsterJournal].slice(0, 12);
+}
+function applyEvent(state, profile, session, event) {
   session.lastUpdatedAt = event.timestamp;
   session.state = nextStateForEvent(event.type, session.state);
   profile.state = session.state;
@@ -207,24 +293,40 @@ function applyEvent(profile, session, event) {
     session.enemyCategory = event.enemyCategory;
     session.stats.currentEnemy = event.enemyCategory;
   }
+  if (event.enemyName) {
+    session.enemyName = event.enemyName;
+    session.stats.currentEnemyName = event.enemyName;
+  }
   switch (event.type) {
     case "scouting":
       session.stats.scoutingCount += 1;
       profile.mood = "Focused";
+      profile.clues += 1;
+      profile.focus = Math.min(9, profile.focus + 1);
+      break;
+    case "enemy_spotted":
+    case "elite_encounter":
+      profile.mood = "Tense";
+      profile.focus = Math.min(9, profile.focus + 1);
       break;
     case "attack":
       session.stats.attackCount += 1;
       profile.mood = "Focused";
+      profile.focus = Math.max(0, profile.focus - 1);
       break;
     case "hit_landed":
     case "enemy_weakened":
       session.stats.hitCount += 1;
       profile.mood = "Tense";
+      profile.combo += 1;
+      profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
       break;
     case "damage_taken":
       session.stats.damageCount += 1;
       profile.hp = Math.max(1, profile.hp - 1);
       profile.mood = "Hurt";
+      profile.combo = 0;
+      profile.focus = Math.max(0, profile.focus - 1);
       break;
     case "victory":
       session.stats.victories += 1;
@@ -232,15 +334,26 @@ function applyEvent(profile, session, event) {
       profile.streak += 1;
       profile.hp = Math.min(profile.maxHp, profile.hp + 2);
       profile.mood = "Proud";
-      if (profile.totalVictories % 3 === 0) {
-        profile.souvenirs.push(`Victory Token ${profile.totalVictories / 3}`);
+      profile.combo += 1;
+      profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
+      if (event.chestItem) {
+        profile.chestsOpened += 1;
+        profile.lastChestItem = event.chestItem;
+        profile.souvenirs = [...profile.souvenirs, event.chestItem].slice(-12);
+      } else if (profile.totalVictories % 3 === 0) {
+        profile.souvenirs = [...profile.souvenirs, `Victory Token ${profile.totalVictories / 3}`].slice(-12);
       }
+      updateMonsterJournal(state, event);
       break;
     case "fatigue":
       profile.mood = "Tense";
       break;
+    case "loot_collected":
+      profile.mood = "Proud";
+      break;
     case "rest":
       profile.mood = "Calm";
+      profile.combo = 0;
       if (profile.state !== "LevelUp") {
         profile.state = "Rest";
       }
@@ -260,7 +373,8 @@ var AcademyEngine = class {
     this.state = {
       profile: state?.profile ?? createDefaultProfile(),
       currentSession: state?.currentSession,
-      activityLog: state?.activityLog ?? []
+      activityLog: state?.activityLog ?? [],
+      monsterJournal: state?.monsterJournal ?? []
     };
   }
   get snapshot() {
@@ -271,7 +385,7 @@ var AcademyEngine = class {
     session.stats.rawEvents += 1;
     const gameplayEvents = normalizeRawEvent(rawEvent);
     for (const gameplayEvent of gameplayEvents) {
-      applyEvent(this.state.profile, session, gameplayEvent);
+      applyEvent(this.state, this.state.profile, session, gameplayEvent);
     }
     if (gameplayEvents.length > 0) {
       for (const gameplayEvent of gameplayEvents) {
@@ -331,13 +445,30 @@ var FileStore = class {
     try {
       const content = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(content);
+      const fallbackSession = parsed.currentSession ? createSession(parsed.currentSession.id) : void 0;
       return {
-        profile: parsed.profile ?? createDefaultProfile(),
-        currentSession: parsed.currentSession,
-        activityLog: parsed.activityLog ?? []
+        profile: {
+          ...createDefaultProfile(),
+          ...parsed.profile,
+          professionProgress: {
+            ...createDefaultProfile().professionProgress,
+            ...parsed.profile?.professionProgress ?? {}
+          }
+        },
+        currentSession: parsed.currentSession ? {
+          ...fallbackSession,
+          ...parsed.currentSession,
+          stats: {
+            ...fallbackSession?.stats,
+            ...parsed.currentSession.stats ?? {}
+          },
+          lastEvents: parsed.currentSession.lastEvents ?? []
+        } : void 0,
+        activityLog: parsed.activityLog ?? [],
+        monsterJournal: parsed.monsterJournal ?? []
       };
     } catch {
-      return { profile: createDefaultProfile(), activityLog: [] };
+      return { profile: createDefaultProfile(), activityLog: [], monsterJournal: [] };
     }
   }
   async save(state) {
@@ -592,8 +723,7 @@ function sessionHeadline(session) {
   if (!session) {
     return "No active quest. Tiny hero is waiting.";
   }
-  const shortSessionId = session.id.length > 16 ? session.id.slice(-16) : session.id;
-  return `Quest ${shortSessionId} | ${session.state} | ${enemyGlyphByCategory[session.stats.currentEnemy]}`;
+  return `${session.state} | ${session.enemyName} ${enemyGlyphByCategory[session.stats.currentEnemy]}`;
 }
 function summarizeEvent(event) {
   switch (event.type) {
@@ -602,23 +732,23 @@ function summarizeEvent(event) {
     case "scouting":
       return "Scouting code paths and clues";
     case "enemy_spotted":
-      return "A strange bug peeks out";
+      return `Spotted ${event.enemyName ?? "a sneaky enemy"}`;
     case "elite_encounter":
-      return "An elite obstacle steps in";
+      return `${event.enemyName ?? "An elite foe"} blocks the path`;
     case "attack":
-      return "Wind-up attack on the current problem";
+      return `Charged at ${event.enemyName ?? "the problem"}`;
     case "hit_landed":
-      return "Patch landed cleanly";
+      return `Patch landed on ${event.enemyName ?? "the target"}`;
     case "damage_taken":
-      return `Took a hit from ${enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
+      return `Took a hit from ${event.enemyName ?? enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
     case "enemy_weakened":
-      return "Validation weakened the enemy";
+      return `${event.enemyName ?? "The enemy"} is cracking`;
     case "victory":
-      return `Victory over ${enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
+      return `Victory over ${event.enemyName ?? enemyGlyphByCategory[event.enemyCategory ?? "Unknown"]}`;
     case "fatigue":
       return "Momentum slowed down";
     case "loot_collected":
-      return "Filed notes and pocketed loot";
+      return event.chestItem ? `Opened chest: ${event.chestItem}` : "Filed notes and pocketed loot";
     case "rest":
       return "Taking a short rest";
     default:
@@ -631,29 +761,31 @@ function renderHeroArt(state) {
 function renderOverview(profile, session) {
   const art = renderHeroArt(profile.state);
   const lines = [];
-  lines.push(border("Tiny Hero"));
+  lines.push(border("Adventure"));
   lines.push(row(moodLine(profile)));
   lines.push(row(progressBar("HP", profile.hp, profile.maxHp)));
   lines.push(row(progressBar("XP", profile.xp, 100)));
-  lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Souvenirs ${profile.souvenirs.length}`));
+  lines.push(row(`Combo x${profile.combo} | Focus ${profile.focus} | Clues ${profile.clues}`));
+  lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Chests ${profile.chestsOpened}`));
   lines.push(row(sessionHeadline(session)));
   lines.push(row());
-  lines.push(row(`${art[0]}  State ${profile.state}`));
-  lines.push(row(`${art[1]}  Profession ${profile.dominantProfession}`));
+  lines.push(row(`${art[0]}  Hero ${profile.name}`));
+  lines.push(row(`${art[1]}  Job ${profile.dominantProfession}`));
   lines.push(row(`${art[2]}  Mood ${profile.mood}`));
   lines.push(border());
   return lines;
 }
-function renderSessionStats(session) {
+function renderDuel(session) {
   const lines = [];
-  lines.push(border("Battle Feed"));
+  lines.push(border("Current Duel"));
   if (!session) {
     lines.push(row("No live battle. Start Codex or Claude Code."));
     lines.push(border());
     return lines;
   }
+  lines.push(row(`Enemy ${session.enemyName}`));
   lines.push(row(`Reads ${session.stats.scoutingCount} | Attacks ${session.stats.attackCount} | Hits ${session.stats.hitCount}`));
-  lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories} | Raw ${session.stats.rawEvents}`));
+  lines.push(row(`Damage ${session.stats.damageCount} | Victories ${session.stats.victories}`));
   lines.push(border());
   return lines;
 }
@@ -674,12 +806,15 @@ function renderRecentFeed(events) {
 }
 function renderSouvenirs(profile) {
   const lines = [];
-  lines.push(border("Shelf"));
+  lines.push(border("Loot"));
   const latest = profile.souvenirs.slice(-3);
   if (latest.length === 0) {
-    lines.push(row("Empty shelf for now. First victory token awaits."));
+    lines.push(row("Bag is light. First tiny chest still waiting."));
     lines.push(border());
     return lines;
+  }
+  if (profile.lastChestItem) {
+    lines.push(row(`Latest chest: ${profile.lastChestItem}`));
   }
   for (const item of latest) {
     lines.push(row(`- ${item}`));
@@ -687,12 +822,28 @@ function renderSouvenirs(profile) {
   lines.push(border());
   return lines;
 }
+function renderJournal(entries) {
+  const lines = [];
+  lines.push(border("Monster Journal"));
+  const latest = entries.slice(0, 3);
+  if (latest.length === 0) {
+    lines.push(row("No monsters logged yet."));
+    lines.push(border());
+    return lines;
+  }
+  for (const entry of latest) {
+    lines.push(row(`- ${entry.name} x${entry.defeats}`));
+  }
+  lines.push(border());
+  return lines;
+}
 function renderPersistedPanel(state) {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
-    ...renderSessionStats(state.currentSession),
+    ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
-    ...renderSouvenirs(state.profile)
+    ...renderSouvenirs(state.profile),
+    ...renderJournal(state.monsterJournal)
   ];
   return lines.join("\n");
 }

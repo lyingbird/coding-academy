@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { PersistedState } from "@academy/shared";
 import { createDefaultProfile } from "./engine.js";
+import { createSession } from "./engine.js";
 
 function findWorkspaceRoot(startDir: string): string {
   let current = startDir;
@@ -36,13 +37,32 @@ export class FileStore {
     try {
       const content = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(content) as Partial<PersistedState>;
+      const fallbackSession = parsed.currentSession ? createSession(parsed.currentSession.id) : undefined;
       return {
-        profile: parsed.profile ?? createDefaultProfile(),
-        currentSession: parsed.currentSession,
+        profile: {
+          ...createDefaultProfile(),
+          ...parsed.profile,
+          professionProgress: {
+            ...createDefaultProfile().professionProgress,
+            ...(parsed.profile?.professionProgress ?? {}),
+          },
+        },
+        currentSession: parsed.currentSession
+          ? {
+              ...fallbackSession,
+              ...parsed.currentSession,
+              stats: {
+                ...fallbackSession?.stats,
+                ...(parsed.currentSession.stats ?? {}),
+              },
+              lastEvents: parsed.currentSession.lastEvents ?? [],
+            }
+          : undefined,
         activityLog: parsed.activityLog ?? [],
+        monsterJournal: parsed.monsterJournal ?? [],
       };
     } catch {
-      return { profile: createDefaultProfile(), activityLog: [] };
+      return { profile: createDefaultProfile(), activityLog: [], monsterJournal: [] };
     }
   }
 

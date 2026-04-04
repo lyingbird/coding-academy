@@ -1,7 +1,7 @@
 import { AcademyEngine } from "@academy/runtime";
 import { FileStore } from "@academy/runtime";
 import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
-import type { RawEvent } from "@academy/shared";
+import type { PersistedState, RawEvent } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 
 async function readStdinText(): Promise<string> {
@@ -22,8 +22,8 @@ function createEvent(sessionId: string, type: RawEvent["type"], payload?: Record
   };
 }
 
-function printUpdate(update: ReturnType<AcademyEngine["process"]>) {
-  console.log(renderUpdatePanel(update, { profile: update.profile, currentSession: update.session, activityLog: update.session.lastEvents }));
+function printUpdate(update: ReturnType<AcademyEngine["process"]>, state: PersistedState) {
+  console.log(renderUpdatePanel(update, state));
 }
 
 async function runDemo() {
@@ -37,10 +37,11 @@ async function runDemo() {
     createEvent(sessionId, "prompt.submitted"),
     createEvent(sessionId, "search.performed"),
     createEvent(sessionId, "file.read"),
+    createEvent(sessionId, "command.started", { command: "pnpm test", majorCheck: true }),
     createEvent(sessionId, "tests.failed"),
     createEvent(sessionId, "file.edited"),
     createEvent(sessionId, "patch.applied"),
-    createEvent(sessionId, "tests.passed"),
+    createEvent(sessionId, "tests.passed", { majorCheck: true }),
     createEvent(sessionId, "summary.written"),
     createEvent(sessionId, "task.completed"),
     createEvent(sessionId, "session.ended"),
@@ -51,7 +52,7 @@ async function runDemo() {
     if (update.gameplayEvents.length === 0) {
       continue;
     }
-    printUpdate(update);
+    printUpdate(update, engine.snapshot);
   }
 
   await store.save(engine.snapshot);
