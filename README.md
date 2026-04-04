@@ -43,13 +43,13 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 From a local clone:
 
 ```bash
-claude plugin marketplace add . && claude plugin install coding-academy@coding-academy
+claude plugin marketplace add . && claude plugin install coding-academy
 ```
 
 From GitHub:
 
 ```bash
-claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy
+claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy
 ```
 
 Quick local dev run:

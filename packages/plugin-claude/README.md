@@ -40,11 +40,11 @@ Fastest path:
 
 One-line local install from the repo root:
 
-- `claude plugin marketplace add . && claude plugin install coding-academy@coding-academy`
+- `claude plugin marketplace add . && claude plugin install coding-academy`
 
 Recommended GitHub install after publishing:
 
-- `claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy`
+- `claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy`
 
 Bundled local marketplace path:
 

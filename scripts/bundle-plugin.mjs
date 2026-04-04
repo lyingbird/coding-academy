@@ -55,6 +55,15 @@ async function main() {
     });
   }
 
+  const distributedPluginPackage = {
+    name: "coding-academy",
+    private: true,
+    type: "module",
+  };
+
+  await writeFile(join(bundledPluginDir, "package.json"), `${JSON.stringify(distributedPluginPackage, null, 2)}\n`, "utf8");
+  await writeFile(join(shareablePluginDir, "package.json"), `${JSON.stringify(distributedPluginPackage, null, 2)}\n`, "utf8");
+
   const marketplace = {
     name: "coding-academy",
     owner: {
