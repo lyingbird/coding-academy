@@ -1,5 +1,6 @@
 import { AcademyEngine } from "@academy/runtime";
 import { FileStore } from "@academy/runtime";
+import { adapterCatalog, findAdapterDescriptor } from "@academy/runtime";
 import { mapCodexInputToRawEvents } from "@academy/runtime";
 import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
 import { mapGeminiInputToRawEvents } from "@academy/runtime";
@@ -9,7 +10,7 @@ import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
 import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
 import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
@@ -299,13 +300,14 @@ async function runRelayFile() {
 }
 
 async function runAdapters() {
+  if (process.argv.includes("--json")) {
+    console.log(JSON.stringify(adapterCatalog, null, 2));
+    return;
+  }
   console.log("Supported adapters:");
-  console.log("- claude  => Claude Code hook payloads");
-  console.log("- codex   => Codex CLI bridge payloads");
-  console.log("- gemini  => Gemini CLI bridge payloads");
-  console.log("- openai  => OpenAI-compatible CLI bridge payloads");
-  console.log("- qwen    => Qwen / domestic coding CLI bridge payloads");
-  console.log("- generic => direct RawEvent arrays");
+  for (const descriptor of adapterCatalog) {
+    console.log(`- ${descriptor.aliases[0]} => ${descriptor.label}`);
+  }
   console.log();
   console.log("Pipe JSON into one:");
   console.log("- pnpm relay codex");
@@ -315,6 +317,207 @@ async function runAdapters() {
   console.log();
   console.log("Or relay from a file:");
   console.log("- pnpm relay:file codex integrations/codex.sample.json");
+}
+
+async function runAdapterInfo() {
+  const input = process.argv[3];
+  if (!input) {
+    console.error("Use: pnpm adapter <claude|codex|gemini|openai|qwen|generic>");
+    process.exitCode = 1;
+    return;
+  }
+
+  const descriptor = findAdapterDescriptor(input);
+  if (!descriptor) {
+    console.error(`Unknown adapter: ${input}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`Adapter: ${descriptor.label}`);
+  console.log(`Platform key: ${descriptor.platform}`);
+  console.log(`Aliases: ${descriptor.aliases.join(", ")}`);
+  console.log(`Description: ${descriptor.description}`);
+  console.log(`Recommended hooks: ${descriptor.recommendedHooks.join(", ")}`);
+  if (descriptor.sampleFile) {
+    console.log(`Sample file: ${descriptor.sampleFile}`);
+    console.log(`Try: pnpm relay:file ${descriptor.aliases[0]} ${descriptor.sampleFile}`);
+  }
+}
+
+async function runScaffold() {
+  const input = process.argv[3];
+  const outputPath = process.argv[4];
+  if (!input) {
+    console.error("Use: pnpm scaffold <claude|codex|gemini|openai|qwen|generic> [output-file]");
+    process.exitCode = 1;
+    return;
+  }
+
+  const descriptor = findAdapterDescriptor(input);
+  if (!descriptor || !descriptor.sampleFile) {
+    console.error(`No scaffold sample available for ${input}.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  const sourcePath = resolve(workspaceRoot, descriptor.sampleFile);
+  const targetPath = outputPath ? resolveInputFile(outputPath) : resolve(workspaceRoot, `${descriptor.aliases[0]}.bridge.json`);
+  const raw = await readFile(sourcePath, "utf8");
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, raw, "utf8");
+  console.log(`Scaffolded ${descriptor.label} sample to ${targetPath}`);
+}
+
+function toSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function buildBridgePackageJson(descriptor: NonNullable<ReturnType<typeof findAdapterDescriptor>>) {
+  const packageName = `coding-academy-${toSlug(descriptor.aliases[0])}-bridge`;
+  return JSON.stringify(
+    {
+      name: packageName,
+      version: "0.1.0",
+      private: true,
+      type: "module",
+      scripts: {
+        sample: `node ./bridge.mjs ./sample-event.json`,
+      },
+    },
+    null,
+    2,
+  );
+}
+
+function buildBridgeReadme(descriptor: NonNullable<ReturnType<typeof findAdapterDescriptor>>) {
+  const sampleFile = descriptor.sampleFile ? descriptor.sampleFile.replace(/\\/g, "/") : "integrations/generic.sample.json";
+  return `# ${descriptor.label} Bridge Starter
+
+This folder is a lightweight starter wrapper for ${descriptor.label}.
+
+## What It Does
+
+- reads one payload JSON file
+- pipes it into \`academy relay ${descriptor.aliases[0]}\`
+- lets you swap the sample payload for real events from your target CLI
+
+## Quick Start
+
+\`\`\`bash
+npm install
+node ./bridge.mjs ./sample-event.json
+\`\`\`
+
+If you generated this starter inside the Coding Academy repo, it will automatically fall back to:
+
+\`\`\`bash
+pnpm --dir <repo-root> relay ${descriptor.aliases[0]}
+\`\`\`
+
+when a global \`academy\` binary is not installed yet.
+
+## Replace The Sample
+
+1. Inspect \`${sampleFile}\` in the main Coding Academy repo
+2. Change \`bridge.mjs\` so it collects real events from your target CLI
+3. Keep the final relay step the same:
+
+\`\`\`bash
+academy relay ${descriptor.aliases[0]}
+\`\`\`
+
+## Recommended Hook Shapes
+
+${descriptor.recommendedHooks.map((hook) => `- \`${hook}\``).join("\n")}
+`;
+}
+
+function buildBridgeScript(descriptor: NonNullable<ReturnType<typeof findAdapterDescriptor>>) {
+  return `import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+
+function findWorkspaceRoot(startDir) {
+  let current = startDir;
+  while (true) {
+    if (existsSync(join(current, "pnpm-workspace.yaml")) || existsSync(join(current, ".git"))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+async function main() {
+  const inputFile = process.argv[2] ?? "./sample-event.json";
+  const resolved = resolve(process.cwd(), inputFile);
+  const raw = await readFile(resolved, "utf8");
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  const command = workspaceRoot ? "pnpm" : "academy";
+  const args = workspaceRoot
+    ? ["--dir", workspaceRoot, "relay", "${descriptor.aliases[0]}"]
+    : ["relay", "${descriptor.aliases[0]}"];
+
+  const relay = spawn(command, args, {
+    stdio: ["pipe", "inherit", "inherit"],
+    shell: true,
+  });
+
+  relay.stdin.write(raw);
+  relay.stdin.end();
+
+  relay.on("exit", (code) => {
+    process.exitCode = code ?? 0;
+  });
+}
+
+void main();
+`;
+}
+
+async function runBridgeInit() {
+  const input = process.argv[3];
+  const outputDir = process.argv[4];
+  if (!input) {
+    console.error("Use: pnpm bridge:init <claude|codex|gemini|openai|qwen|generic> [output-dir]");
+    process.exitCode = 1;
+    return;
+  }
+
+  const descriptor = findAdapterDescriptor(input);
+  if (!descriptor) {
+    console.error(`Unknown adapter: ${input}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  const targetDir = outputDir
+    ? resolveInputFile(outputDir)
+    : resolve(workspaceRoot, ".bridges", descriptor.aliases[0]);
+  const sampleSource = descriptor.sampleFile
+    ? resolve(workspaceRoot, descriptor.sampleFile)
+    : resolve(workspaceRoot, "integrations", "generic.sample.json");
+
+  await mkdir(targetDir, { recursive: true });
+  await writeFile(resolve(targetDir, "package.json"), `${buildBridgePackageJson(descriptor)}\n`, "utf8");
+  await writeFile(resolve(targetDir, "README.md"), buildBridgeReadme(descriptor), "utf8");
+  await writeFile(resolve(targetDir, "bridge.mjs"), buildBridgeScript(descriptor), "utf8");
+
+  const sampleRaw = await readFile(sampleSource, "utf8");
+  await writeFile(resolve(targetDir, "sample-event.json"), sampleRaw, "utf8");
+
+  console.log(`Initialized ${descriptor.label} bridge starter at ${targetDir}`);
+  console.log(`Try: node ${resolve(targetDir, "bridge.mjs")} ${resolve(targetDir, "sample-event.json")}`);
 }
 
 async function main() {
@@ -348,6 +551,15 @@ async function main() {
       return;
     case "adapters":
       await runAdapters();
+      return;
+    case "adapter":
+      await runAdapterInfo();
+      return;
+    case "scaffold":
+      await runScaffold();
+      return;
+    case "bridge:init":
+      await runBridgeInit();
       return;
     default:
       console.error(`Unknown command: ${command}`);

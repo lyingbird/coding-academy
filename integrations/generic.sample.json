@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "type": "prompt.submitted",
+      "timestamp": "2026-04-04T00:00:00.000Z",
+      "sessionId": "generic-session-1",
+      "payload": {
+        "prompt": "Map the repo before editing anything."
+      }
+    }
+  ]
+}

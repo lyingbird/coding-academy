@@ -52,6 +52,35 @@ List the supported adapters and bridge entry names:
 pnpm adapters
 ```
 
+Show one adapter in detail:
+
+```bash
+pnpm adapter codex
+pnpm adapter qwen
+```
+
+Scaffold a starter payload into your own path:
+
+```bash
+pnpm scaffold codex
+pnpm scaffold openai .tmp/openai.bridge.json
+```
+
+Initialize a bridge wrapper starter project:
+
+```bash
+pnpm bridge:init codex
+pnpm bridge:init gemini .bridges/gemini
+pnpm bridge:init qwen .bridges/qwen-domestic
+```
+
+Each generated bridge starter includes:
+
+- `bridge.mjs`
+- `sample-event.json`
+- `package.json`
+- `README.md`
+
 ## Why This Shape
 
 - gameplay rules stay in one runtime

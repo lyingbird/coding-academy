@@ -603,7 +603,7 @@ var FileStore = class {
   }
 };
 
-// ../runtime/src/claudeHooks.ts
+// ../runtime/src/adapters/claude.ts
 function nowIso2() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }

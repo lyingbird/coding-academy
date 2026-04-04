@@ -42,6 +42,9 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm relay`
 - `pnpm relay:file`
 - `pnpm adapters`
+- `pnpm adapter`
+- `pnpm scaffold`
+- `pnpm bridge:init`
 - `pnpm build`
 - `pnpm typecheck`
 - `pnpm plugin:build`
@@ -171,6 +174,27 @@ Show supported adapter names:
 
 ```bash
 pnpm adapters
+```
+
+Show one adapter in detail:
+
+```bash
+pnpm adapter codex
+pnpm adapter qwen
+```
+
+Scaffold a starter bridge payload:
+
+```bash
+pnpm scaffold codex
+pnpm scaffold openai .tmp/openai.bridge.json
+```
+
+Initialize a wrapper project starter for a target CLI:
+
+```bash
+pnpm bridge:init codex
+pnpm bridge:init qwen .bridges/qwen-domestic
 ```
 
 ## What Already Works

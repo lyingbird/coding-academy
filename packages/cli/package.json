@@ -18,7 +18,10 @@
     "ingest": "tsx src/index.ts ingest",
     "relay": "tsx src/index.ts relay",
     "relay-file": "tsx src/index.ts relay-file",
-    "adapters": "tsx src/index.ts adapters"
+    "adapters": "tsx src/index.ts adapters",
+    "adapter": "tsx src/index.ts adapter",
+    "scaffold": "tsx src/index.ts scaffold",
+    "bridge:init": "tsx src/index.ts bridge:init"
   },
   "dependencies": {
     "@academy/runtime": "workspace:*",
