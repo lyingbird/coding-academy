@@ -81,6 +81,11 @@ Each generated bridge starter includes:
 - `package.json`
 - `README.md`
 
+The generated `bridge.mjs` now uses the same shell policy as the main product:
+
+- Windows: shell mode on
+- macOS / Linux: direct spawn
+
 ## Fast Wrapper Path
 
 If you do not want to write a bridge yet, wrap a real CLI command directly:

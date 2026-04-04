@@ -14,6 +14,7 @@
     "status": "tsx src/index.ts status",
     "panel": "tsx src/index.ts panel",
     "watch": "tsx src/index.ts watch",
+    "doctor": "tsx src/index.ts doctor",
     "strategy": "tsx src/index.ts strategy",
     "burst": "tsx src/index.ts burst",
     "check-in": "tsx src/index.ts check-in",

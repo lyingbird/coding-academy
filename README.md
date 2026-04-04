@@ -39,6 +39,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm status`
 - `pnpm panel`
 - `pnpm watch`
+- `pnpm health`
 - `pnpm check-in`
 - `pnpm codex`
 - `pnpm gemini`
@@ -105,6 +106,12 @@ Player-first entry point:
 pnpm start
 ```
 
+Check what is actually ready on this machine:
+
+```bash
+pnpm health
+```
+
 The loop is intentionally simple:
 
 ```bash
@@ -131,6 +138,17 @@ What `pnpm play` still does:
 - launches real Claude mode if your Claude session is healthy
 - falls back to the local demo if Claude auth or org access is broken
 - tells you exactly how to recover real mode
+
+## macOS / Windows
+
+The current runtime and wrapper flow are designed to work on both macOS and Windows:
+
+- command discovery uses platform-aware checks
+- wrapper spawning only forces shell mode on Windows
+- storage paths use Node path utilities instead of hardcoded separators
+- generated bridge starters now inherit the same Windows/macOS shell behavior
+
+Use `pnpm health` on any machine to see which provider commands are ready, missing, or need fixing.
 
 Direct real-mode run:
 

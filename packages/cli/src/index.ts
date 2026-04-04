@@ -103,6 +103,10 @@ function probeExecutable(command: string): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
+function envVarForAdapter(adapter: AdapterPlatform): string {
+  return `ACADEMY_${adapter.replace(/-/g, "_").toUpperCase()}_CMD`;
+}
+
 async function processRawEvents(rawEvents: RawEvent[], printPanel = false) {
   const store = new FileStore();
   const renderedUpdates: { update: ReturnType<AcademyEngine["process"]>; snapshot: PersistedState }[] = [];
@@ -509,7 +513,7 @@ async function main() {
 
   const relay = spawn(command, args, {
     stdio: ["pipe", "inherit", "inherit"],
-    shell: true,
+    shell: process.platform === "win32",
   });
 
   relay.stdin.write(raw);
@@ -522,6 +526,37 @@ async function main() {
 
 void main();
 `;
+}
+
+async function runDoctor() {
+  const store = new FileStore();
+  const persisted = await store.load();
+  const adapters = adapterCatalog.filter((item) => item.platform !== "generic-cli");
+
+  console.log("Coding Academy Doctor");
+  console.log(`Platform: ${process.platform} ${process.arch}`);
+  console.log(`Node: ${process.version}`);
+  console.log(`State: ${store.path}`);
+  console.log();
+
+  for (const descriptor of adapters) {
+    const envVar = envVarForAdapter(descriptor.platform);
+    const resolvedCommand = process.env[envVar] ?? defaultExecutableForAdapter(descriptor.platform) ?? "(unset)";
+    const available = resolvedCommand !== "(unset)" && isCommandAvailable(resolvedCommand);
+    const probe = available ? probeExecutable(resolvedCommand) : { ok: false, reason: "Command not found on PATH." };
+    const readiness = available && probe.ok ? "ready" : available ? "needs-fix" : "missing";
+    console.log(`- ${descriptor.label}`);
+    console.log(`  command: ${resolvedCommand}`);
+    console.log(`  status: ${readiness}`);
+    console.log(`  override: ${envVar}`);
+    if (!probe.ok && probe.reason) {
+      console.log(`  note: ${probe.reason}`);
+    }
+  }
+
+  console.log();
+  console.log(`Hero: ${persisted.profile.name} Lv.${persisted.profile.level} ${persisted.profile.dominantProfession}`);
+  console.log(`Burst cache: ~${persisted.burstBank.estimatedTokens} tok, wins ${persisted.burstBank.victories}, checks ${persisted.burstBank.validations}`);
 }
 
 async function runBridgeInit() {
@@ -772,6 +807,9 @@ async function main() {
       return;
     case "bridge:init":
       await runBridgeInit();
+      return;
+    case "doctor":
+      await runDoctor();
       return;
     case "wrap":
       await runWrap();
