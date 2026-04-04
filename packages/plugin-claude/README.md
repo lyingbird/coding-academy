@@ -1,24 +1,6 @@
-# Claude Plugin Skeleton
+# Coding Academy Claude Plugin
 
-This package contains the first Claude Code plugin integration layer for Coding Academy.
-
-## Current State
-
-Implemented:
-
-- plugin metadata
-- hook relay script build
-- status renderer script build
-- hook configuration skeleton
-- event ingestion into the shared runtime engine
-- development bundle packaging
-
-Not implemented yet:
-
-- user-facing plugin install package
-- slash command runtime integration
-- visible companion renderer
-- production packaging and release flow
+This package contains the Claude Code plugin source for Coding Academy.
 
 ## Important Files
 
@@ -50,7 +32,7 @@ When `CLAUDE_PLUGIN_DATA` is set, local state is written under:
 
 The status script reads the same state store and renders the terminal companion panel.
 
-## Development Install
+## Install
 
 Fastest path:
 

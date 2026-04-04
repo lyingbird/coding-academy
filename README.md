@@ -2,24 +2,14 @@
 
 Coding Academy is a lightweight CLI companion project inspired by Stone Story RPG, Battle! Brave Academy, and bongocat-style desktop companions.
 
-The first goal is simple:
+It turns real Claude Code work into a tiny auto-battling adventure:
 
-- keep installation low-friction
-- keep the companion cute and useful
-- visualize real CLI coding work as scouting, battle, victory, fatigue, and growth
+- reads and searches become scouting
+- edits and patches become attacks
+- failed checks become enemy hits
+- completed tasks become victories, streaks, and souvenirs
 
-## Current Focus
-
-This repository currently implements the V1 foundation:
-
-- shared event and gameplay schema
-- runtime engine for normalized gameplay events
-- hero companion state machine
-- local persistence
-- a small CLI demo entry point
-- a Claude Code plugin hook relay skeleton
-
-## Workspace
+## Project Layout
 
 - `packages/shared`
   - common types, enums, and event contracts
@@ -28,9 +18,11 @@ This repository currently implements the V1 foundation:
 - `packages/cli`
   - local demo CLI for testing the engine
 - `packages/plugin-claude`
-  - Claude Code plugin skeleton
-- `kb`
-  - product and implementation notes
+  - Claude Code plugin source
+- `plugins/coding-academy`
+  - shareable plugin synced for one-line install
+- `.claude-plugin/marketplace.json`
+  - repo-level marketplace manifest
 
 ## Commands
 
@@ -43,22 +35,27 @@ This repository currently implements the V1 foundation:
 - `pnpm typecheck`
 - `pnpm plugin:build`
 - `pnpm plugin:bundle`
+- `pnpm plugin:validate`
 
-## Claude Dev Loop
+## Install
 
-- local plugin loading:
-  - `claude --plugin-dir ./plugins/coding-academy`
-- repo auto-enable:
-  - this repo ships `.claude/settings.json` so trusted workspaces can auto-register the marketplace and enable the plugin
-- one-line install from a cloned repo:
-  - `claude plugin marketplace add . && claude plugin install coding-academy@coding-academy`
-- one-line install after you publish to GitHub:
-  - `claude plugin marketplace add OWNER/REPO --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy`
-- bundled dev marketplace:
-  - run `pnpm plugin:bundle`
-  - install from `dist/claude-marketplace/marketplace.json`
-- live companion panel:
-  - run `pnpm watch` in a separate terminal while Claude Code is active
+From a local clone:
+
+```bash
+claude plugin marketplace add . && claude plugin install coding-academy@coding-academy
+```
+
+From GitHub:
+
+```bash
+claude plugin marketplace add OWNER/REPO --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy@coding-academy
+```
+
+Quick local dev run:
+
+```bash
+claude --plugin-dir ./plugins/coding-academy
+```
 
 ## What Already Works
 
@@ -69,12 +66,8 @@ This repository currently implements the V1 foundation:
   - `packages/plugin-claude/bin/academy-hook.js`
 - a shareable plugin is synced into the repo at:
   - `plugins/coding-academy`
-- the repo itself now exposes a marketplace manifest at:
+- the repo exposes a marketplace manifest at:
   - `.claude-plugin/marketplace.json`
-- a bundled local plugin package can be produced in:
-  - `dist/claude-plugin/coding-academy`
-- a bundled local marketplace manifest can be produced in:
-  - `dist/claude-marketplace/marketplace.json`
 - plugin-mode persistence uses `CLAUDE_PLUGIN_DATA/academy-state/state.json` when available
 - the repo ships project-level Claude settings at:
   - `.claude/settings.json`
