@@ -9,6 +9,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - failed checks become enemy hits
 - completed tasks become victories, streaks, and souvenirs
 - combos, clues, tiny chests, and monster journal entries keep the feedback loop hot
+- vibecoding downtime becomes a low-pressure charge phase instead of dead air
 
 ## Project Layout
 
@@ -77,12 +78,27 @@ Inside Claude, use:
 
 - `/academy:status`
 
+Choose a lightweight vibe strategy any time:
+
+```bash
+pnpm strategy cozy
+pnpm strategy flow
+pnpm strategy rush
+```
+
+- `cozy`
+  - safer, calmer, good for long waiting stretches
+- `flow`
+  - balanced default, keeps momentum smooth
+- `rush`
+  - turns charge into combo spikes for a hotter payoff
+
 ## What Already Works
 
 - the local demo can simulate a full scout -> damage -> victory loop
 - state persists in `.academy/state.json`
 - `pnpm status` renders a lightweight terminal companion panel by default
-- the hero now tracks combo, focus, clues, tiny chests, and a small monster journal
+- the hero now tracks strategy, charge, combo, focus, clues, tiny chests, and a small monster journal
 - Claude-style hook payloads can be ingested by:
   - `packages/plugin-claude/bin/academy-hook.js`
 - a shareable plugin is synced into the repo at:

@@ -7,6 +7,7 @@ import type {
   MonsterJournalEntry,
   PersistedState,
   SessionState,
+  StrategyMode,
 } from "@academy/shared";
 
 const PANEL_WIDTH = 58;
@@ -63,6 +64,68 @@ function moodLine(profile: HeroProfile): string {
   return `${profile.name} Lv.${profile.level} ${profile.dominantProfession} | ${profile.mood}`;
 }
 
+function strategyHint(strategy: StrategyMode): string {
+  switch (strategy) {
+    case "Cozy":
+      return "Charge softens the next hit";
+    case "Flow":
+      return "Charge turns clean hits into focus";
+    case "Rush":
+      return "Charge turns clean hits into combo";
+  }
+}
+
+function waitingLine(profile: HeroProfile, session?: SessionState): string {
+  if (!session) {
+    switch (profile.strategy) {
+      case "Cozy":
+        return "Waiting by the campfire for the next prompt.";
+      case "Flow":
+        return "Ready to catch the next good thread.";
+      case "Rush":
+        return "Boots tapping. Ready to burst on the next quest.";
+    }
+  }
+
+  switch (session?.state) {
+    case "Scout":
+      return profile.strategy === "Cozy"
+        ? "Brewing tea while Claude thinks."
+        : profile.strategy === "Flow"
+          ? "Following the warmest clue."
+          : "Leaning forward for the first opening.";
+    case "Battle":
+    case "Cast":
+      return profile.strategy === "Cozy"
+        ? "Holding the line and waiting for a safe swing."
+        : profile.strategy === "Flow"
+          ? "Riding the thread without forcing it."
+          : "Coiling up for a burst finish.";
+    case "Hit":
+      return profile.strategy === "Cozy"
+        ? "Shaking it off. The stance still holds."
+        : profile.strategy === "Flow"
+          ? "Resetting rhythm after a rough exchange."
+          : "Snarling and looking for a snap-back.";
+    case "Victory":
+      return "Let the reward breathe for a second.";
+    case "Rest":
+      return "Cooling down before the next prompt.";
+    default:
+      return "Hovering in the quiet between ideas.";
+  }
+}
+
+function nextPopLine(profile: HeroProfile): string {
+  if (profile.charge === 0) {
+    return "Next pop: one quiet beat builds your first charge.";
+  }
+  if (profile.charge < 3) {
+    return `Next pop: ${strategyHint(profile.strategy)}.`;
+  }
+  return `Next pop: ${profile.strategy} stance is primed for a clean hit.`;
+}
+
 function sessionHeadline(session?: SessionState): string {
   if (!session) {
     return "No active quest. Tiny hero is waiting.";
@@ -113,13 +176,23 @@ function renderOverview(profile: HeroProfile, session?: SessionState): string[] 
   lines.push(row(moodLine(profile)));
   lines.push(row(progressBar("HP", profile.hp, profile.maxHp)));
   lines.push(row(progressBar("XP", profile.xp, 100)));
-  lines.push(row(`Combo x${profile.combo} | Focus ${profile.focus} | Clues ${profile.clues}`));
+  lines.push(row(`Vibe ${profile.strategy} | Charge ${profile.charge} | Combo x${profile.combo}`));
+  lines.push(row(`Focus ${profile.focus} | Clues ${profile.clues} | Max Combo ${profile.maxCombo}`));
   lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Chests ${profile.chestsOpened}`));
   lines.push(row(sessionHeadline(session)));
   lines.push(row());
   lines.push(row(`${art[0]}  Hero ${profile.name}`));
   lines.push(row(`${art[1]}  Job ${profile.dominantProfession}`));
   lines.push(row(`${art[2]}  Mood ${profile.mood}`));
+  lines.push(border());
+  return lines;
+}
+
+function renderVibeLoop(profile: HeroProfile, session?: SessionState): string[] {
+  const lines: string[] = [];
+  lines.push(border("Vibe Loop"));
+  lines.push(row(waitingLine(profile, session)));
+  lines.push(row(nextPopLine(profile)));
   lines.push(border());
   return lines;
 }
@@ -201,6 +274,7 @@ function renderJournal(entries: MonsterJournalEntry[]): string[] {
 export function renderPersistedPanel(state: PersistedState): string {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
+    ...renderVibeLoop(state.profile, state.currentSession),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
     ...renderSouvenirs(state.profile),

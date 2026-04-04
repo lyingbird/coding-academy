@@ -1,7 +1,7 @@
 import { AcademyEngine } from "@academy/runtime";
 import { FileStore } from "@academy/runtime";
 import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
-import type { PersistedState, RawEvent } from "@academy/shared";
+import type { PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 
 async function readStdinText(): Promise<string> {
@@ -86,6 +86,38 @@ async function runWatch() {
   }
 }
 
+function parseStrategy(input?: string): StrategyMode | null {
+  const normalized = input?.trim().toLowerCase();
+  switch (normalized) {
+    case "cozy":
+      return "Cozy";
+    case "flow":
+      return "Flow";
+    case "rush":
+      return "Rush";
+    default:
+      return null;
+  }
+}
+
+async function runStrategy() {
+  const store = new FileStore();
+  const persisted = await store.load();
+  const selected = parseStrategy(process.argv[3]);
+
+  if (!selected) {
+    console.log(`Current strategy: ${persisted.profile.strategy}`);
+    console.log("Available strategies: cozy, flow, rush");
+    console.log("Use: pnpm strategy cozy|flow|rush");
+    return;
+  }
+
+  persisted.profile.strategy = selected;
+  await store.save(persisted);
+  console.log(`Strategy set to ${selected}.`);
+  console.log(renderPersistedPanel(persisted));
+}
+
 async function runHook() {
   const input = await readStdinText();
   const hookPayload = JSON.parse(input);
@@ -117,6 +149,9 @@ async function main() {
       return;
     case "watch":
       await runWatch();
+      return;
+    case "strategy":
+      await runStrategy();
       return;
     case "hook":
       await runHook();

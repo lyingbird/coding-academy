@@ -41,7 +41,9 @@ function createDefaultProfile(name = "Tiny Hero") {
     maxCombo: 0,
     focus: 0,
     clues: 0,
-    chestsOpened: 0
+    charge: 0,
+    chestsOpened: 0,
+    strategy: "Flow"
   };
 }
 function createSession(sessionId) {
@@ -108,12 +110,38 @@ function classifyEnemy(rawEvent) {
       return "Unknown";
   }
 }
+function gainCharge(profile, amount) {
+  profile.charge = Math.min(5, profile.charge + amount);
+}
+function spendCharge(profile, amount) {
+  profile.charge = Math.max(0, profile.charge - amount);
+}
+function applyStrategyOnCleanHit(profile) {
+  if (profile.charge <= 0) {
+    return;
+  }
+  switch (profile.strategy) {
+    case "Cozy":
+      spendCharge(profile, 1);
+      profile.hp = Math.min(profile.maxHp, profile.hp + 1);
+      break;
+    case "Flow":
+      spendCharge(profile, 1);
+      profile.focus = Math.min(9, profile.focus + 1);
+      break;
+    case "Rush":
+      spendCharge(profile, 1);
+      profile.combo += 1;
+      profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
+      break;
+  }
+}
 function normalizeRawEvent(rawEvent) {
   const events = [];
   const payload = rawEvent.payload ?? {};
   switch (rawEvent.type) {
     case "prompt.submitted":
-      pushEvent(events, rawEvent, "quest_started", { xpReward: 1, rewardLabel: "Quest On" });
+      pushEvent(events, rawEvent, "quest_started", { xpReward: 1, rewardLabel: "Quest On", note: "Campfire lit" });
       break;
     case "session.started":
       break;
@@ -299,15 +327,21 @@ function applyEvent(state, profile, session, event) {
   }
   switch (event.type) {
     case "scouting":
+      gainCharge(profile, 1);
       session.stats.scoutingCount += 1;
       profile.mood = "Focused";
       profile.clues += 1;
       profile.focus = Math.min(9, profile.focus + 1);
       break;
+    case "quest_started":
+      gainCharge(profile, 1);
+      profile.mood = "Calm";
+      break;
     case "enemy_spotted":
     case "elite_encounter":
       profile.mood = "Tense";
       profile.focus = Math.min(9, profile.focus + 1);
+      gainCharge(profile, 1);
       break;
     case "attack":
       session.stats.attackCount += 1;
@@ -320,11 +354,17 @@ function applyEvent(state, profile, session, event) {
       profile.mood = "Tense";
       profile.combo += 1;
       profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
+      applyStrategyOnCleanHit(profile);
       break;
     case "damage_taken":
       session.stats.damageCount += 1;
-      profile.hp = Math.max(1, profile.hp - 1);
-      profile.mood = "Hurt";
+      if (profile.strategy === "Cozy" && profile.charge > 0) {
+        spendCharge(profile, 1);
+        profile.mood = "Focused";
+      } else {
+        profile.hp = Math.max(1, profile.hp - 1);
+        profile.mood = "Hurt";
+      }
       profile.combo = 0;
       profile.focus = Math.max(0, profile.focus - 1);
       break;
@@ -354,6 +394,9 @@ function applyEvent(state, profile, session, event) {
     case "rest":
       profile.mood = "Calm";
       profile.combo = 0;
+      if (profile.strategy === "Cozy" && profile.charge > 0) {
+        profile.hp = Math.min(profile.maxHp, profile.hp + 1);
+      }
       if (profile.state !== "LevelUp") {
         profile.state = "Rest";
       }
@@ -719,6 +762,52 @@ function progressBar(label, value, total, width = 18) {
 function moodLine(profile) {
   return `${profile.name} Lv.${profile.level} ${profile.dominantProfession} | ${profile.mood}`;
 }
+function strategyHint(strategy) {
+  switch (strategy) {
+    case "Cozy":
+      return "Charge softens the next hit";
+    case "Flow":
+      return "Charge turns clean hits into focus";
+    case "Rush":
+      return "Charge turns clean hits into combo";
+  }
+}
+function waitingLine(profile, session) {
+  if (!session) {
+    switch (profile.strategy) {
+      case "Cozy":
+        return "Waiting by the campfire for the next prompt.";
+      case "Flow":
+        return "Ready to catch the next good thread.";
+      case "Rush":
+        return "Boots tapping. Ready to burst on the next quest.";
+    }
+  }
+  switch (session?.state) {
+    case "Scout":
+      return profile.strategy === "Cozy" ? "Brewing tea while Claude thinks." : profile.strategy === "Flow" ? "Following the warmest clue." : "Leaning forward for the first opening.";
+    case "Battle":
+    case "Cast":
+      return profile.strategy === "Cozy" ? "Holding the line and waiting for a safe swing." : profile.strategy === "Flow" ? "Riding the thread without forcing it." : "Coiling up for a burst finish.";
+    case "Hit":
+      return profile.strategy === "Cozy" ? "Shaking it off. The stance still holds." : profile.strategy === "Flow" ? "Resetting rhythm after a rough exchange." : "Snarling and looking for a snap-back.";
+    case "Victory":
+      return "Let the reward breathe for a second.";
+    case "Rest":
+      return "Cooling down before the next prompt.";
+    default:
+      return "Hovering in the quiet between ideas.";
+  }
+}
+function nextPopLine(profile) {
+  if (profile.charge === 0) {
+    return "Next pop: one quiet beat builds your first charge.";
+  }
+  if (profile.charge < 3) {
+    return `Next pop: ${strategyHint(profile.strategy)}.`;
+  }
+  return `Next pop: ${profile.strategy} stance is primed for a clean hit.`;
+}
 function sessionHeadline(session) {
   if (!session) {
     return "No active quest. Tiny hero is waiting.";
@@ -765,13 +854,22 @@ function renderOverview(profile, session) {
   lines.push(row(moodLine(profile)));
   lines.push(row(progressBar("HP", profile.hp, profile.maxHp)));
   lines.push(row(progressBar("XP", profile.xp, 100)));
-  lines.push(row(`Combo x${profile.combo} | Focus ${profile.focus} | Clues ${profile.clues}`));
+  lines.push(row(`Vibe ${profile.strategy} | Charge ${profile.charge} | Combo x${profile.combo}`));
+  lines.push(row(`Focus ${profile.focus} | Clues ${profile.clues} | Max Combo ${profile.maxCombo}`));
   lines.push(row(`Streak ${profile.streak} | Wins ${profile.totalVictories} | Chests ${profile.chestsOpened}`));
   lines.push(row(sessionHeadline(session)));
   lines.push(row());
   lines.push(row(`${art[0]}  Hero ${profile.name}`));
   lines.push(row(`${art[1]}  Job ${profile.dominantProfession}`));
   lines.push(row(`${art[2]}  Mood ${profile.mood}`));
+  lines.push(border());
+  return lines;
+}
+function renderVibeLoop(profile, session) {
+  const lines = [];
+  lines.push(border("Vibe Loop"));
+  lines.push(row(waitingLine(profile, session)));
+  lines.push(row(nextPopLine(profile)));
   lines.push(border());
   return lines;
 }
@@ -840,6 +938,7 @@ function renderJournal(entries) {
 function renderPersistedPanel(state) {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
+    ...renderVibeLoop(state.profile, state.currentSession),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
     ...renderSouvenirs(state.profile),

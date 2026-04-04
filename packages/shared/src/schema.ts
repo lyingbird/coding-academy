@@ -30,6 +30,10 @@ export const professionTypes = [
 
 export type ProfessionType = (typeof professionTypes)[number];
 
+export const strategyModes = ["Cozy", "Flow", "Rush"] as const;
+
+export type StrategyMode = (typeof strategyModes)[number];
+
 export const rawEventTypes = [
   "session.started",
   "prompt.submitted",
@@ -116,7 +120,9 @@ export interface HeroProfile {
   maxCombo: number;
   focus: number;
   clues: number;
+  charge: number;
   chestsOpened: number;
+  strategy: StrategyMode;
   lastChestItem?: string;
 }
 

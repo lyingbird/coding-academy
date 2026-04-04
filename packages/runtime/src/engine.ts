@@ -58,7 +58,9 @@ export function createDefaultProfile(name = "Tiny Hero"): HeroProfile {
     maxCombo: 0,
     focus: 0,
     clues: 0,
+    charge: 0,
     chestsOpened: 0,
+    strategy: "Flow",
   };
 }
 
@@ -143,12 +145,42 @@ function classifyEnemy(rawEvent: RawEvent): EnemyCategory {
   }
 }
 
+function gainCharge(profile: HeroProfile, amount: number) {
+  profile.charge = Math.min(5, profile.charge + amount);
+}
+
+function spendCharge(profile: HeroProfile, amount: number) {
+  profile.charge = Math.max(0, profile.charge - amount);
+}
+
+function applyStrategyOnCleanHit(profile: HeroProfile) {
+  if (profile.charge <= 0) {
+    return;
+  }
+
+  switch (profile.strategy) {
+    case "Cozy":
+      spendCharge(profile, 1);
+      profile.hp = Math.min(profile.maxHp, profile.hp + 1);
+      break;
+    case "Flow":
+      spendCharge(profile, 1);
+      profile.focus = Math.min(9, profile.focus + 1);
+      break;
+    case "Rush":
+      spendCharge(profile, 1);
+      profile.combo += 1;
+      profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
+      break;
+  }
+}
+
 export function normalizeRawEvent(rawEvent: RawEvent): GameplayEvent[] {
   const events: GameplayEvent[] = [];
   const payload = rawEvent.payload ?? {};
   switch (rawEvent.type) {
     case "prompt.submitted":
-      pushEvent(events, rawEvent, "quest_started", { xpReward: 1, rewardLabel: "Quest On" });
+      pushEvent(events, rawEvent, "quest_started", { xpReward: 1, rewardLabel: "Quest On", note: "Campfire lit" });
       break;
     case "session.started":
       break;
@@ -345,15 +377,21 @@ function applyEvent(state: PersistedState, profile: HeroProfile, session: Sessio
 
   switch (event.type) {
     case "scouting":
+      gainCharge(profile, 1);
       session.stats.scoutingCount += 1;
       profile.mood = "Focused";
       profile.clues += 1;
       profile.focus = Math.min(9, profile.focus + 1);
       break;
+    case "quest_started":
+      gainCharge(profile, 1);
+      profile.mood = "Calm";
+      break;
     case "enemy_spotted":
     case "elite_encounter":
       profile.mood = "Tense";
       profile.focus = Math.min(9, profile.focus + 1);
+      gainCharge(profile, 1);
       break;
     case "attack":
       session.stats.attackCount += 1;
@@ -366,11 +404,17 @@ function applyEvent(state: PersistedState, profile: HeroProfile, session: Sessio
       profile.mood = "Tense";
       profile.combo += 1;
       profile.maxCombo = Math.max(profile.maxCombo, profile.combo);
+      applyStrategyOnCleanHit(profile);
       break;
     case "damage_taken":
       session.stats.damageCount += 1;
-      profile.hp = Math.max(1, profile.hp - 1);
-      profile.mood = "Hurt";
+      if (profile.strategy === "Cozy" && profile.charge > 0) {
+        spendCharge(profile, 1);
+        profile.mood = "Focused";
+      } else {
+        profile.hp = Math.max(1, profile.hp - 1);
+        profile.mood = "Hurt";
+      }
       profile.combo = 0;
       profile.focus = Math.max(0, profile.focus - 1);
       break;
@@ -400,6 +444,9 @@ function applyEvent(state: PersistedState, profile: HeroProfile, session: Sessio
     case "rest":
       profile.mood = "Calm";
       profile.combo = 0;
+      if (profile.strategy === "Cozy" && profile.charge > 0) {
+        profile.hp = Math.min(profile.maxHp, profile.hp + 1);
+      }
       if (profile.state !== "LevelUp") {
         profile.state = "Rest";
       }
