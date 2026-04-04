@@ -34,6 +34,18 @@ export const strategyModes = ["Cozy", "Flow", "Rush"] as const;
 
 export type StrategyMode = (typeof strategyModes)[number];
 
+export const adapterPlatforms = [
+  "claude-code",
+  "codex-cli",
+  "gemini-cli",
+  "qwen-code",
+  "openai-cli",
+  "openai-compatible",
+  "generic-cli",
+] as const;
+
+export type AdapterPlatform = (typeof adapterPlatforms)[number];
+
 export const rawEventTypes = [
   "session.started",
   "prompt.submitted",

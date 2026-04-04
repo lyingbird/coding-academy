@@ -13,6 +13,8 @@
     "watch": "pnpm --filter @academy/cli watch",
     "strategy": "pnpm --filter @academy/cli strategy",
     "burst": "pnpm --filter @academy/cli burst",
+    "ingest": "pnpm --filter @academy/cli ingest",
+    "relay": "pnpm --filter @academy/cli relay",
     "plugin:build": "pnpm --filter @academy/plugin-claude build",
     "plugin:bundle": "node ./scripts/bundle-plugin.mjs",
     "plugin:validate": "claude plugin validate . && claude plugin validate ./plugins/coding-academy",

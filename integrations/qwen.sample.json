@@ -1,0 +1,5 @@
+{
+  "conversation_id": "qwen-session-1",
+  "phase": "edit",
+  "target": "src/app.ts"
+}

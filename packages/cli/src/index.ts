@@ -1,8 +1,13 @@
 import { AcademyEngine } from "@academy/runtime";
 import { FileStore } from "@academy/runtime";
+import { mapCodexInputToRawEvents } from "@academy/runtime";
 import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
+import { mapGeminiInputToRawEvents } from "@academy/runtime";
+import { mapGenericInputToRawEvents } from "@academy/runtime";
+import { mapOpenAiCliInputToRawEvents } from "@academy/runtime";
+import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
 import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
-import type { PersistedState, RawEvent, StrategyMode } from "@academy/shared";
+import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 
 async function readStdinText(): Promise<string> {
@@ -11,7 +16,7 @@ async function readStdinText(): Promise<string> {
   for await (const chunk of process.stdin) {
     chunks.push(chunk);
   }
-  return chunks.join("");
+  return chunks.join("").replace(/^\uFEFF/, "").trim();
 }
 
 function createEvent(sessionId: string, type: RawEvent["type"], payload?: Record<string, unknown>): RawEvent {
@@ -159,6 +164,79 @@ async function runHook() {
   await store.save(engine.snapshot);
 }
 
+function parseAdapter(input?: string): AdapterPlatform | null {
+  const normalized = input?.trim().toLowerCase();
+  switch (normalized) {
+    case "claude":
+    case "claude-code":
+      return "claude-code";
+    case "codex":
+    case "codex-cli":
+      return "codex-cli";
+    case "gemini":
+    case "gemini-cli":
+      return "gemini-cli";
+    case "openai":
+    case "openai-cli":
+      return "openai-cli";
+    case "qwen":
+    case "qwen-code":
+      return "qwen-code";
+    case "generic":
+    case "generic-cli":
+      return "generic-cli";
+    default:
+      return null;
+  }
+}
+
+function mapAdapterPayload(adapter: AdapterPlatform, payload: unknown): RawEvent[] {
+  switch (adapter) {
+    case "claude-code":
+      return mapClaudeHookInputToRawEvents(payload as Record<string, unknown>);
+    case "codex-cli":
+      return mapCodexInputToRawEvents(payload as Record<string, unknown>);
+    case "gemini-cli":
+      return mapGeminiInputToRawEvents(payload as Record<string, unknown>);
+    case "openai-cli":
+      return mapOpenAiCliInputToRawEvents(payload as Record<string, unknown>);
+    case "qwen-code":
+      return mapQwenCodeInputToRawEvents(payload as Record<string, unknown>);
+    case "generic-cli":
+      return mapGenericInputToRawEvents(payload as Record<string, unknown>);
+    default:
+      return [];
+  }
+}
+
+async function runIngest() {
+  const adapter = parseAdapter(process.argv[3]);
+  if (!adapter) {
+    console.error("Use: pnpm ingest claude|codex|gemini|openai|qwen|generic");
+    process.exitCode = 1;
+    return;
+  }
+
+  const input = await readStdinText();
+  const payload = JSON.parse(input);
+  const rawEvents = mapAdapterPayload(adapter, payload);
+  if (rawEvents.length === 0) {
+    console.log(`No raw events mapped for ${adapter}.`);
+    return;
+  }
+
+  const store = new FileStore();
+  const persisted = await store.load();
+  const engine = new AcademyEngine(persisted);
+
+  for (const rawEvent of rawEvents) {
+    engine.process(rawEvent);
+  }
+
+  await store.save(engine.snapshot);
+  console.log(renderPersistedPanel(engine.snapshot));
+}
+
 async function main() {
   const command = process.argv[2] ?? "demo";
   switch (command) {
@@ -180,6 +258,10 @@ async function main() {
       return;
     case "hook":
       await runHook();
+      return;
+    case "ingest":
+    case "relay":
+      await runIngest();
       return;
     default:
       console.error(`Unknown command: ${command}`);

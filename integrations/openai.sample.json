@@ -1,0 +1,6 @@
+{
+  "session_id": "openai-session-1",
+  "event": "check_fail",
+  "command": "pnpm test",
+  "majorCheck": true
+}

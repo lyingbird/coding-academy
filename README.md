@@ -1,6 +1,6 @@
 # Coding Academy
 
-Coding Academy is a lightweight CLI companion project inspired by Stone Story RPG, Battle! Brave Academy, and bongocat-style desktop companions.
+Coding Academy is a lightweight multi-CLI companion platform inspired by Stone Story RPG, Battle! Brave Academy, and bongocat-style desktop companions.
 
 It turns real Claude Code work into a tiny auto-battling adventure:
 
@@ -21,6 +21,10 @@ It turns real Claude Code work into a tiny auto-battling adventure:
   - local demo CLI for testing the engine
 - `packages/plugin-claude`
   - Claude Code plugin source
+- `packages/runtime/src/adapters`
+  - platform adapter mappers for Claude, Codex, Gemini, and generic CLI payloads
+- `integrations`
+  - sample payloads and rollout notes for multi-CLI bridges
 - `plugins/coding-academy`
   - shareable plugin synced for one-line install
 - `.claude-plugin/marketplace.json`
@@ -34,11 +38,34 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm status`
 - `pnpm panel`
 - `pnpm watch`
+- `pnpm ingest`
+- `pnpm relay`
 - `pnpm build`
 - `pnpm typecheck`
 - `pnpm plugin:build`
 - `pnpm plugin:bundle`
 - `pnpm plugin:validate`
+
+## Platform Direction
+
+Coding Academy is no longer framed as only a Claude Code plugin.
+
+The product shape is:
+
+- one shared gameplay runtime
+- many CLI adapters
+- platform-specific wrappers on top
+
+Current adapter layer already includes starter mappers for:
+
+- Claude Code
+- Codex CLI
+- Gemini CLI
+- OpenAI-compatible CLI wrappers
+- Qwen / domestic coding CLIs
+- generic CLI payloads
+
+That means future wrappers for domestic tools or OpenAI-compatible agent shells can plug into the same reward loop instead of forking the game.
 
 ## Install
 
@@ -108,6 +135,26 @@ pnpm burst rush
 - prompt / edit / validation mix
 - a release result based on your chosen stance
 - XP, clues, combo, and possible chest payout
+
+Generic adapter ingestion entry:
+
+```bash
+pnpm ingest claude
+pnpm ingest codex
+pnpm ingest gemini
+pnpm ingest openai
+pnpm ingest qwen
+pnpm ingest generic
+```
+
+Relay alias:
+
+```bash
+pnpm relay codex
+pnpm relay gemini
+pnpm relay openai
+pnpm relay qwen
+```
 
 ## What Already Works
 

@@ -1,0 +1,5 @@
+{
+  "sessionId": "codex-session-1",
+  "event": "prompt",
+  "prompt": "Investigate the failing build and reduce the diff size."
+}

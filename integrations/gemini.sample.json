@@ -1,0 +1,5 @@
+{
+  "session_id": "gemini-session-1",
+  "phase": "validate_ok",
+  "command": "npm test"
+}
