@@ -1,7 +1,7 @@
 import {
   FileStore,
   renderPersistedPanel
-} from "./chunk-AZRQUYBL.js";
+} from "./chunk-O5N5DGDW.js";
 
 // src/academy-status.ts
 async function main() {

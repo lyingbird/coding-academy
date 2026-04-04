@@ -128,6 +128,11 @@ Then cash out the run:
 pnpm check-in
 ```
 
+`check-in` now gives you two layers:
+
+- the payout
+- a short recap of the run's main enemy and effort style
+
 Legacy smart entry point:
 
 ```bash

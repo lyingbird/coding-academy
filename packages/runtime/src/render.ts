@@ -1,4 +1,5 @@
 import type {
+  BurstRecap,
   BurstResult,
   CompanionState,
   EnemyCategory,
@@ -35,10 +36,10 @@ const enemyGlyphByCategory: Record<EnemyCategory, string> = {
 
 function padRight(input: string, width: number): string {
   if (input.length >= width) {
-    if (width <= 1) {
+    if (width <= 3) {
       return input.slice(0, width);
     }
-    return `${input.slice(0, width - 1)}…`;
+    return `${input.slice(0, width - 3)}...`;
   }
   return input + " ".repeat(width - input.length);
 }
@@ -169,7 +170,6 @@ function sessionHeadline(session?: SessionState): string {
   if (!session) {
     return "No active quest. Tiny hero is waiting.";
   }
-
   return `${session.state} | ${session.enemyName} ${enemyGlyphByCategory[session.stats.currentEnemy]}`;
 }
 
@@ -240,6 +240,25 @@ function renderCompanionVoice(state: PersistedState): string[] {
   const lines: string[] = [];
   lines.push(border("Companion"));
   lines.push(row(companionVoice(state.profile, state.currentSession, state)));
+  lines.push(border());
+  return lines;
+}
+
+function renderLatestCheckIn(recaps: BurstRecap[]): string[] {
+  const lines: string[] = [];
+  lines.push(border("Latest Check-In"));
+
+  const latest = recaps[0];
+  if (!latest) {
+    lines.push(row("No burst recap yet. Bring back a fresh run."));
+    lines.push(border());
+    return lines;
+  }
+
+  lines.push(row(latest.title));
+  lines.push(row(`${latest.grade} | ${latest.mode} | ${latest.effortTag}`));
+  lines.push(row(`~${latest.estimatedTokens} tok${latest.loot ? ` | Loot ${latest.loot}` : ""}`));
+  lines.push(row(latest.summary));
   lines.push(border());
   return lines;
 }
@@ -334,6 +353,7 @@ export function renderPersistedPanel(state: PersistedState): string {
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
     ...renderCompanionVoice(state),
+    ...renderLatestCheckIn(state.recentBursts),
     ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
@@ -347,7 +367,7 @@ export function renderPersistedPanel(state: PersistedState): string {
 export function renderUpdatePanel(update: EngineUpdate, state: PersistedState): string {
   const latestGameplay = update.gameplayEvents.at(-1);
   const headline = latestGameplay
-    ? `${summarizeEvent(latestGameplay)}${latestGameplay.rewardLabel ? ` · ${latestGameplay.rewardLabel}` : ""}`
+    ? `${summarizeEvent(latestGameplay)}${latestGameplay.rewardLabel ? ` | ${latestGameplay.rewardLabel}` : ""}`
     : "Quiet moment";
   return `${renderPersistedPanel(state)}\n${headline}`;
 }
@@ -361,17 +381,29 @@ export function renderBurstResult(result: BurstResult): string {
     lines.push(border());
     return lines.join("\n");
   }
+
   lines.push(row(`${result.grade} ${result.mode} release | ${result.effortTag}`));
   lines.push(row(`You bottled ~${result.estimatedTokens} tok and spent ${result.chargeSpent} charge.`));
   lines.push(row(`XP +${result.xpGain} | Focus +${result.focusGain} | Clues +${result.cluesGain}`));
   lines.push(row(`Combo +${result.comboGain}${result.chestItem ? ` | Loot ${result.chestItem}` : ""}`));
-  lines.push(row(result.grade === "Blazing"
-    ? "That was a real pop. Worth the tab switch."
-    : result.grade === "Hot"
-      ? "Solid release. The run had real heat in it."
-      : result.grade === "Warm"
-        ? "Nice little payout. Enough to keep the loop sweet."
-        : "Quiet release, but it still moved the hero forward."));
+  lines.push(
+    row(
+      result.grade === "Blazing"
+        ? "That was a real pop. Worth the tab switch."
+        : result.grade === "Hot"
+          ? "Solid release. The run had real heat in it."
+          : result.grade === "Warm"
+            ? "Nice little payout. Enough to keep the loop sweet."
+            : "Quiet release, but it still moved the hero forward.",
+    ),
+  );
+
+  if (result.recap) {
+    lines.push(row());
+    lines.push(row(result.recap.title));
+    lines.push(row(result.recap.summary));
+  }
+
   lines.push(border());
   return lines.join("\n");
 }
@@ -392,5 +424,6 @@ export function renderLobby(state: PersistedState): string {
   lines.push(border());
   lines.push(...renderOverview(state.profile, state.currentSession));
   lines.push(...renderCompanionVoice(state));
+  lines.push(...renderLatestCheckIn(state.recentBursts));
   return lines.join("\n");
 }

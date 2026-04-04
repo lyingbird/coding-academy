@@ -1,5 +1,6 @@
 import {
   type BurstBank,
+  type BurstRecap,
   type BurstResult,
   type CompanionState,
   type EnemyCategory,
@@ -44,6 +45,10 @@ export function createBurstBank(): BurstBank {
     failures: 0,
     victories: 0,
   };
+}
+
+export function createBurstRecapHistory(): BurstRecap[] {
+  return [];
 }
 
 function nowIso() {
@@ -294,6 +299,59 @@ function burstGrade(power: number): BurstResult["grade"] {
   return "Quiet";
 }
 
+function summarizeBurstRecap(state: PersistedState, result: BurstResult): BurstRecap {
+  const recent = state.activityLog.slice(-8);
+  const enemyCounts = new Map<string, number>();
+  for (const event of recent) {
+    if (event.enemyName) {
+      enemyCounts.set(event.enemyName, (enemyCounts.get(event.enemyName) ?? 0) + 1);
+    }
+  }
+
+  const primaryEnemy =
+    [...enemyCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? state.burstBank.lastEnemyName;
+
+  const title = primaryEnemy
+    ? result.grade === "Blazing" || result.grade === "Hot"
+      ? `${primaryEnemy} broke open`
+      : `${primaryEnemy} paid out`
+    : `${result.grade} ${result.mode} release`;
+
+  let summary = "A quiet pocket of work still moved the hero forward.";
+  switch (result.effortTag) {
+    case "exploration-heavy":
+      summary = "Most of this payout came from clue-hunting, repo reading, and finding the safe path.";
+      break;
+    case "patch-heavy":
+      summary = "This run leaned on edits and patch pressure. Fewer words, more blade work.";
+      break;
+    case "validation-heavy":
+      summary = "This payout was forged in checks. You kept tightening the loop until the run gave way.";
+      break;
+    case "mixed":
+      summary = "This was a mixed run: scouting, patching, and checking all fed the release.";
+      break;
+  }
+
+  if (result.grade === "Blazing") {
+    summary = `${summary} It landed with real heat.`;
+  } else if (result.grade === "Hot") {
+    summary = `${summary} Strong enough to feel like a proper check-in.`;
+  }
+
+  return {
+    timestamp: nowIso(),
+    title,
+    summary,
+    mode: result.mode,
+    grade: result.grade,
+    effortTag: result.effortTag,
+    primaryEnemy,
+    loot: result.chestItem,
+    estimatedTokens: result.estimatedTokens,
+  };
+}
+
 function burstPower(profile: HeroProfile, bank: BurstBank): number {
   const tokenPower = Math.floor(bank.estimatedTokens / 120);
   const activityPower = bank.prompts + bank.reads + bank.edits + bank.validations;
@@ -379,6 +437,7 @@ export function performBurst(state: PersistedState): BurstResult {
   if (result.power === 0) {
     return result;
   }
+  const recap = summarizeBurstRecap(state, result);
   state.profile.xp += result.xpGain;
   state.profile.focus = Math.min(9, state.profile.focus + result.focusGain);
   state.profile.clues += result.cluesGain;
@@ -406,7 +465,11 @@ export function performBurst(state: PersistedState): BurstResult {
   }
 
   state.burstBank = createBurstBank();
-  return result;
+  state.recentBursts = [recap, ...(state.recentBursts ?? [])].slice(0, 6);
+  return {
+    ...result,
+    recap,
+  };
 }
 
 export function normalizeRawEvent(rawEvent: RawEvent): GameplayEvent[] {
@@ -706,6 +769,7 @@ export class AcademyEngine {
       activityLog: state?.activityLog ?? [],
       monsterJournal: state?.monsterJournal ?? [],
       burstBank: state?.burstBank ?? createBurstBank(),
+      recentBursts: state?.recentBursts ?? createBurstRecapHistory(),
     };
   }
 

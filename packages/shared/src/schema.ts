@@ -182,6 +182,19 @@ export interface BurstResult {
   chestItem?: string;
   estimatedTokens: number;
   chargeSpent: number;
+  recap?: BurstRecap;
+}
+
+export interface BurstRecap {
+  timestamp: string;
+  title: string;
+  summary: string;
+  mode: StrategyMode;
+  grade: "Quiet" | "Warm" | "Hot" | "Blazing";
+  effortTag: "exploration-heavy" | "patch-heavy" | "validation-heavy" | "mixed";
+  primaryEnemy?: string;
+  loot?: string;
+  estimatedTokens: number;
 }
 
 export interface EngineUpdate {
@@ -197,4 +210,5 @@ export interface PersistedState {
   activityLog: GameplayEvent[];
   monsterJournal: MonsterJournalEntry[];
   burstBank: BurstBank;
+  recentBursts: BurstRecap[];
 }

@@ -2,7 +2,7 @@ import {
   AcademyEngine,
   FileStore,
   mapClaudeHookInputToRawEvents
-} from "./chunk-AZRQUYBL.js";
+} from "./chunk-O5N5DGDW.js";
 
 // src/academy-hook.ts
 async function readStdinText() {

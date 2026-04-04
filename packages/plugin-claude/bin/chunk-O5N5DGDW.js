@@ -26,6 +26,9 @@ function createBurstBank() {
     victories: 0
   };
 }
+function createBurstRecapHistory() {
+  return [];
+}
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
@@ -486,7 +489,8 @@ var AcademyEngine = class {
       currentSession: state?.currentSession,
       activityLog: state?.activityLog ?? [],
       monsterJournal: state?.monsterJournal ?? [],
-      burstBank: state?.burstBank ?? createBurstBank()
+      burstBank: state?.burstBank ?? createBurstBank(),
+      recentBursts: state?.recentBursts ?? createBurstRecapHistory()
     };
   }
   get snapshot() {
@@ -612,14 +616,16 @@ var FileStore = class {
         burstBank: {
           ...createBurstBank(),
           ...parsed.burstBank ?? {}
-        }
+        },
+        recentBursts: parsed.recentBursts ?? createBurstRecapHistory()
       };
     } catch {
       return {
         profile: createDefaultProfile(),
         activityLog: [],
         monsterJournal: [],
-        burstBank: createBurstBank()
+        burstBank: createBurstBank(),
+        recentBursts: createBurstRecapHistory()
       };
     }
   }
@@ -865,10 +871,10 @@ var enemyGlyphByCategory = {
 };
 function padRight(input, width) {
   if (input.length >= width) {
-    if (width <= 1) {
+    if (width <= 3) {
       return input.slice(0, width);
     }
-    return `${input.slice(0, width - 1)}\u2026`;
+    return `${input.slice(0, width - 3)}...`;
   }
   return input + " ".repeat(width - input.length);
 }
@@ -1041,6 +1047,22 @@ function renderCompanionVoice(state) {
   lines.push(border());
   return lines;
 }
+function renderLatestCheckIn(recaps) {
+  const lines = [];
+  lines.push(border("Latest Check-In"));
+  const latest = recaps[0];
+  if (!latest) {
+    lines.push(row("No burst recap yet. Bring back a fresh run."));
+    lines.push(border());
+    return lines;
+  }
+  lines.push(row(latest.title));
+  lines.push(row(`${latest.grade} | ${latest.mode} | ${latest.effortTag}`));
+  lines.push(row(`~${latest.estimatedTokens} tok${latest.loot ? ` | Loot ${latest.loot}` : ""}`));
+  lines.push(row(latest.summary));
+  lines.push(border());
+  return lines;
+}
 function renderBurstCache(state) {
   const lines = [];
   lines.push(border("Burst Cache"));
@@ -1118,6 +1140,7 @@ function renderPersistedPanel(state) {
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
     ...renderCompanionVoice(state),
+    ...renderLatestCheckIn(state.recentBursts),
     ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
