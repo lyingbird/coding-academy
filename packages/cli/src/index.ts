@@ -13,6 +13,7 @@ import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { spawn } from "node:child_process";
 
 async function readStdinText(): Promise<string> {
   const chunks: string[] = [];
@@ -63,10 +64,37 @@ function printUpdate(update: ReturnType<AcademyEngine["process"]>, state: Persis
   console.log(renderUpdatePanel(update, state));
 }
 
-async function runDemo() {
+async function processRawEvents(rawEvents: RawEvent[], printPanel = false) {
   const store = new FileStore();
-  const persisted = await store.load();
-  const engine = new AcademyEngine(persisted);
+  const renderedUpdates: { update: ReturnType<AcademyEngine["process"]>; snapshot: PersistedState }[] = [];
+  const transaction = await store.transact(async (persisted) => {
+    const engine = new AcademyEngine(persisted);
+
+    for (const rawEvent of rawEvents) {
+      const update = engine.process(rawEvent);
+      if (printPanel && update.gameplayEvents.length > 0) {
+        renderedUpdates.push({
+          update,
+          snapshot: engine.snapshot,
+        });
+      }
+    }
+
+    Object.assign(persisted, engine.snapshot);
+    return null;
+  });
+
+  for (const rendered of renderedUpdates) {
+    printUpdate(rendered.update, rendered.snapshot);
+  }
+
+  return {
+    store,
+    snapshot: transaction.state,
+  };
+}
+
+async function runDemo() {
   const sessionId = `demo-${Date.now()}`;
 
   const script: RawEvent[] = [
@@ -84,16 +112,8 @@ async function runDemo() {
     createEvent(sessionId, "session.ended"),
   ];
 
-  for (const rawEvent of script) {
-    const update = engine.process(rawEvent);
-    if (update.gameplayEvents.length === 0) {
-      continue;
-    }
-    printUpdate(update, engine.snapshot);
-  }
-
-  await store.save(engine.snapshot);
-  console.log(`saved=${store.path}`);
+  const result = await processRawEvents(script, true);
+  console.log(`saved=${result.store.path}`);
 }
 
 async function runStatus() {
@@ -183,16 +203,7 @@ async function runHook() {
   if (rawEvents.length === 0) {
     return;
   }
-
-  const store = new FileStore();
-  const persisted = await store.load();
-  const engine = new AcademyEngine(persisted);
-
-  for (const rawEvent of rawEvents) {
-    engine.process(rawEvent);
-  }
-
-  await store.save(engine.snapshot);
+  await processRawEvents(rawEvents);
 }
 
 function parseAdapter(input?: string): AdapterPlatform | null {
@@ -256,16 +267,8 @@ async function runIngest() {
     return;
   }
 
-  const store = new FileStore();
-  const persisted = await store.load();
-  const engine = new AcademyEngine(persisted);
-
-  for (const rawEvent of rawEvents) {
-    engine.process(rawEvent);
-  }
-
-  await store.save(engine.snapshot);
-  console.log(renderPersistedPanel(engine.snapshot));
+  const result = await processRawEvents(rawEvents);
+  console.log(renderPersistedPanel(result.snapshot));
 }
 
 async function runRelayFile() {
@@ -287,16 +290,8 @@ async function runRelayFile() {
     return;
   }
 
-  const store = new FileStore();
-  const persisted = await store.load();
-  const engine = new AcademyEngine(persisted);
-
-  for (const rawEvent of rawEvents) {
-    engine.process(rawEvent);
-  }
-
-  await store.save(engine.snapshot);
-  console.log(renderPersistedPanel(engine.snapshot));
+  const result = await processRawEvents(rawEvents);
+  console.log(renderPersistedPanel(result.snapshot));
 }
 
 async function runAdapters() {
@@ -520,6 +515,154 @@ async function runBridgeInit() {
   console.log(`Try: node ${resolve(targetDir, "bridge.mjs")} ${resolve(targetDir, "sample-event.json")}`);
 }
 
+function defaultExecutableForAdapter(adapter: AdapterPlatform): string | null {
+  switch (adapter) {
+    case "claude-code":
+      return "claude";
+    case "codex-cli":
+      return "codex";
+    case "gemini-cli":
+      return "gemini";
+    case "openai-cli":
+      return "openai";
+    case "qwen-code":
+      return "qwen";
+    default:
+      return null;
+  }
+}
+
+function inferPromptFromCommandArgs(args: string[]): string | undefined {
+  for (let index = 0; index < args.length; index += 1) {
+    const current = args[index];
+    const next = args[index + 1];
+    if (!current) {
+      continue;
+    }
+
+    if (current === "-p" || current === "--prompt" || current === "--message" || current === "--query") {
+      return next;
+    }
+
+    if (current.startsWith("--prompt=") || current.startsWith("--message=") || current.startsWith("--query=")) {
+      return current.split("=").slice(1).join("=");
+    }
+  }
+
+  return undefined;
+}
+
+function commandLooksLikeMajorCheck(commandText: string, args: string[]): boolean {
+  const joined = `${commandText} ${args.join(" ")}`.toLowerCase();
+  return ["test", "lint", "typecheck", "build", "check", "verify"].some((keyword) => joined.includes(keyword));
+}
+
+async function runWrap(providerOverride?: string) {
+  const providerInput = providerOverride ?? process.argv[3];
+  const adapter = parseAdapter(providerInput);
+  if (!adapter || adapter === "generic-cli") {
+    console.error("Use: pnpm wrap <claude|codex|gemini|openai|qwen> [--prompt <text>] [--summary <text>] [--cmd <command>] -- [args]");
+    process.exitCode = 1;
+    return;
+  }
+
+  let command = process.env[`ACADEMY_${adapter.replace(/-/g, "_").toUpperCase()}_CMD`] ?? defaultExecutableForAdapter(adapter);
+  let prompt = "";
+  let summary = "";
+
+  const tailArgs = process.argv.slice(4);
+  const childArgs: string[] = [];
+  let passthrough = false;
+
+  for (let index = 0; index < tailArgs.length; index += 1) {
+    const current = tailArgs[index];
+    const next = tailArgs[index + 1];
+    if (passthrough) {
+      childArgs.push(current);
+      continue;
+    }
+    if (current === "--") {
+      passthrough = true;
+      continue;
+    }
+    if (current === "--cmd" && next) {
+      command = next;
+      index += 1;
+      continue;
+    }
+    if (current === "--prompt" && next) {
+      prompt = next;
+      index += 1;
+      continue;
+    }
+    if (current === "--summary" && next) {
+      summary = next;
+      index += 1;
+      continue;
+    }
+
+    childArgs.push(current);
+  }
+
+  prompt = prompt || inferPromptFromCommandArgs(childArgs) || "";
+  if (!command) {
+    console.error(`No default executable configured for ${adapter}. Pass --cmd <command>.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const sessionId = `${adapter}-${Date.now()}`;
+  const commandText = `${command} ${childArgs.join(" ")}`.trim();
+  const majorCheck = commandLooksLikeMajorCheck(command, childArgs);
+
+  await processRawEvents([
+    createEvent(sessionId, "session.started", { platform: adapter }),
+    ...(prompt ? [createEvent(sessionId, "prompt.submitted", { prompt, platform: adapter })] : []),
+    createEvent(sessionId, "command.started", {
+      command: commandText,
+      platform: adapter,
+      majorCheck,
+    }),
+  ]);
+
+  const child = spawn(command, childArgs, {
+    cwd: process.cwd(),
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+
+  const exitCode: number = await new Promise((resolve) => {
+    child.on("exit", (code) => resolve(code ?? 0));
+    child.on("error", () => resolve(1));
+  });
+
+  const endingEvents: RawEvent[] = [
+    createEvent(
+      sessionId,
+      exitCode === 0 ? "command.succeeded" : "command.failed",
+      {
+        command: commandText,
+        platform: adapter,
+        majorCheck,
+        exitCode,
+      },
+    ),
+  ];
+
+  if (exitCode === 0) {
+    if (summary) {
+      endingEvents.push(createEvent(sessionId, "summary.written", { summary, platform: adapter }));
+    }
+    endingEvents.push(createEvent(sessionId, "task.completed", { platform: adapter }));
+  }
+
+  endingEvents.push(createEvent(sessionId, "session.ended", { platform: adapter }));
+
+  const result = await processRawEvents(endingEvents);
+  console.log(renderPersistedPanel(result.snapshot));
+  process.exitCode = exitCode;
+}
+
 async function main() {
   const command = process.argv[2] ?? "demo";
   switch (command) {
@@ -560,6 +703,12 @@ async function main() {
       return;
     case "bridge:init":
       await runBridgeInit();
+      return;
+    case "wrap":
+      await runWrap();
+      return;
+    case "wrap-provider":
+      await runWrap(process.argv[3]);
       return;
     default:
       console.error(`Unknown command: ${command}`);

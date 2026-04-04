@@ -81,6 +81,25 @@ Each generated bridge starter includes:
 - `package.json`
 - `README.md`
 
+## Fast Wrapper Path
+
+If you do not want to write a bridge yet, wrap a real CLI command directly:
+
+```bash
+pnpm wrap codex --cmd node -- -e "console.log('codex batch ok')"
+pnpm wrap:codex -- --help
+pnpm wrap:gemini -- --help
+pnpm wrap:qwen -- --help
+```
+
+This is a lifecycle wrapper, not a deep protocol adapter.
+
+It is useful when you want:
+
+- a low-friction first integration
+- burst rewards around real batch runs
+- a stepping stone before building a native bridge
+
 ## Why This Shape
 
 - gameplay rules stay in one runtime

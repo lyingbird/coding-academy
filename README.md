@@ -45,6 +45,11 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm adapter`
 - `pnpm scaffold`
 - `pnpm bridge:init`
+- `pnpm wrap`
+- `pnpm wrap:codex`
+- `pnpm wrap:gemini`
+- `pnpm wrap:openai`
+- `pnpm wrap:qwen`
 - `pnpm build`
 - `pnpm typecheck`
 - `pnpm plugin:build`
@@ -196,6 +201,21 @@ Initialize a wrapper project starter for a target CLI:
 pnpm bridge:init codex
 pnpm bridge:init qwen .bridges/qwen-domestic
 ```
+
+Run a real CLI command through Coding Academy without writing a custom bridge first:
+
+```bash
+pnpm wrap codex --cmd node -- -e "console.log('codex batch ok')"
+pnpm wrap:codex -- --help
+pnpm wrap:gemini -- --help
+```
+
+Wrapper notes:
+
+- best for one-shot or batch CLI calls first
+- emits session start, optional prompt, command lifecycle, victory/failure, and session end
+- if you already know the prompt text, pass `--prompt "..."` to improve token and effort tracking
+- if a run succeeds and you want a cleaner archive reward, pass `--summary "what this run accomplished"`
 
 ## What Already Works
 

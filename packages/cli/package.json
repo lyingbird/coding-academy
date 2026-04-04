@@ -21,7 +21,9 @@
     "adapters": "tsx src/index.ts adapters",
     "adapter": "tsx src/index.ts adapter",
     "scaffold": "tsx src/index.ts scaffold",
-    "bridge:init": "tsx src/index.ts bridge:init"
+    "bridge:init": "tsx src/index.ts bridge:init",
+    "wrap": "tsx src/index.ts wrap",
+    "wrap-provider": "tsx src/index.ts wrap-provider"
   },
   "dependencies": {
     "@academy/runtime": "workspace:*",

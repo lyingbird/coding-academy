@@ -526,7 +526,7 @@ var AcademyEngine = class {
 
 // ../runtime/src/store.ts
 import { existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, open, readFile, rm, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 function findWorkspaceRoot(startDir) {
   let current = startDir;
@@ -555,7 +555,36 @@ var FileStore = class {
     this.filePath = filePath;
   }
   filePath;
-  async load() {
+  get lockPath() {
+    return `${this.filePath}.lock`;
+  }
+  async sleep(milliseconds) {
+    await new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+  async withLock(fn) {
+    await mkdir(dirname(this.filePath), { recursive: true });
+    const startedAt = Date.now();
+    while (true) {
+      try {
+        const handle = await open(this.lockPath, "wx");
+        try {
+          return await fn();
+        } finally {
+          await handle.close();
+          await rm(this.lockPath, { force: true });
+        }
+      } catch (error) {
+        if (error.code !== "EEXIST") {
+          throw error;
+        }
+        if (Date.now() - startedAt > 1e4) {
+          throw new Error(`Timed out waiting for academy state lock: ${this.lockPath}`);
+        }
+        await this.sleep(50);
+      }
+    }
+  }
+  async loadUnsafe() {
     try {
       const content = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(content);
@@ -594,9 +623,28 @@ var FileStore = class {
       };
     }
   }
-  async save(state) {
+  async saveUnsafe(state) {
     await mkdir(dirname(this.filePath), { recursive: true });
     await writeFile(this.filePath, JSON.stringify(state, null, 2), "utf8");
+  }
+  async load() {
+    return this.loadUnsafe();
+  }
+  async save(state) {
+    await this.withLock(async () => {
+      await this.saveUnsafe(state);
+    });
+  }
+  async transact(mutate) {
+    return this.withLock(async () => {
+      const state = await this.loadUnsafe();
+      const result = await mutate(state);
+      await this.saveUnsafe(state);
+      return {
+        state,
+        result
+      };
+    });
   }
   get path() {
     return this.filePath;
