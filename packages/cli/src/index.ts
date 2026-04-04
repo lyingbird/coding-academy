@@ -9,11 +9,11 @@ import { mapOpenAiCliInputToRawEvents } from "@academy/runtime";
 import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
 import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
 import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
-import { renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
+import { renderLobby, renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 async function readStdinText(): Promise<string> {
   const chunks: string[] = [];
@@ -62,6 +62,45 @@ function createEvent(sessionId: string, type: RawEvent["type"], payload?: Record
 
 function printUpdate(update: ReturnType<AcademyEngine["process"]>, state: PersistedState) {
   console.log(renderUpdatePanel(update, state));
+}
+
+function isCommandAvailable(command: string): boolean {
+  const checker = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(checker, [command], {
+    stdio: "ignore",
+    shell: process.platform === "win32",
+  });
+  return result.status === 0;
+}
+
+function probeExecutable(command: string): { ok: boolean; reason?: string } {
+  const result = spawnSync(command, ["--version"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    timeout: 5000,
+  });
+
+  if (result.status === 0) {
+    return { ok: true };
+  }
+
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+  const lowered = output.toLowerCase();
+
+  if (
+    lowered.includes("access is denied") ||
+    lowered.includes("not recognized") ||
+    lowered.includes("no such file") ||
+    lowered.includes("cannot find") ||
+    lowered.includes("permission denied")
+  ) {
+    return {
+      ok: false,
+      reason: output || `Could not launch ${command}.`,
+    };
+  }
+
+  return { ok: true };
 }
 
 async function processRawEvents(rawEvents: RawEvent[], printPanel = false) {
@@ -124,6 +163,12 @@ async function runStatus() {
     return;
   }
   console.log(renderPersistedPanel(persisted));
+}
+
+async function runLobby() {
+  const store = new FileStore();
+  const persisted = await store.load();
+  console.log(renderLobby(persisted));
 }
 
 async function runWatch() {
@@ -569,6 +614,7 @@ async function runWrap(providerOverride?: string) {
   let command = process.env[`ACADEMY_${adapter.replace(/-/g, "_").toUpperCase()}_CMD`] ?? defaultExecutableForAdapter(adapter);
   let prompt = "";
   let summary = "";
+  let usedCustomCommand = false;
 
   const tailArgs = process.argv.slice(4);
   const childArgs: string[] = [];
@@ -587,6 +633,7 @@ async function runWrap(providerOverride?: string) {
     }
     if (current === "--cmd" && next) {
       command = next;
+      usedCustomCommand = true;
       index += 1;
       continue;
     }
@@ -609,6 +656,22 @@ async function runWrap(providerOverride?: string) {
     console.error(`No default executable configured for ${adapter}. Pass --cmd <command>.`);
     process.exitCode = 1;
     return;
+  }
+  if (!isCommandAvailable(command)) {
+    console.error(`Coding Academy could not find \`${command}\` on PATH for ${adapter}.`);
+    console.error(`Install that CLI first, or test the wrapper with: pnpm wrap ${providerInput} --cmd node -- --version`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!usedCustomCommand) {
+    const probe = probeExecutable(command);
+    if (!probe.ok) {
+      console.error(`Coding Academy found \`${command}\`, but it is not ready to launch cleanly.`);
+      console.error(probe.reason);
+      console.error(`Try again after fixing ${command}, or test the game loop with: pnpm wrap ${providerInput} --cmd node -- --version`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   const sessionId = `${adapter}-${Date.now()}`;
@@ -666,6 +729,10 @@ async function runWrap(providerOverride?: string) {
 async function main() {
   const command = process.argv[2] ?? "demo";
   switch (command) {
+    case "start":
+    case "lobby":
+      await runLobby();
+      return;
     case "demo":
       await runDemo();
       return;
@@ -680,6 +747,8 @@ async function main() {
       await runStrategy();
       return;
     case "burst":
+    case "check-in":
+    case "checkin":
       await runBurst();
       return;
     case "hook":

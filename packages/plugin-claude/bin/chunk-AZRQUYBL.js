@@ -865,7 +865,10 @@ var enemyGlyphByCategory = {
 };
 function padRight(input, width) {
   if (input.length >= width) {
-    return input.slice(0, width);
+    if (width <= 1) {
+      return input.slice(0, width);
+    }
+    return `${input.slice(0, width - 1)}\u2026`;
   }
   return input + " ".repeat(width - input.length);
 }
@@ -899,6 +902,36 @@ function strategyHint(strategy) {
     case "Rush":
       return "Charge turns clean hits into combo";
   }
+}
+function companionVoice(profile, session, state) {
+  const enemy = session?.enemyName ?? state?.burstBank.lastEnemyName;
+  if (session?.state === "Battle" || session?.state === "Cast") {
+    switch (profile.strategy) {
+      case "Cozy":
+        return `I see ${enemy ?? "the problem"}. Slow hands, clean win.`;
+      case "Flow":
+        return `Thread is warm. ${enemy ?? "This one"} will break if we keep rhythm.`;
+      case "Rush":
+        return `${enemy ?? "This thing"} is almost open. Say the word and I spike it.`;
+    }
+  }
+  if (profile.charge >= 4) {
+    switch (profile.strategy) {
+      case "Cozy":
+        return "We have enough charge. Cash it gently and keep the streak safe.";
+      case "Flow":
+        return "Charge is ripe. One check-in and we turn this run into momentum.";
+      case "Rush":
+        return "Battery is hot. Pull me over and let me burst.";
+    }
+  }
+  if (profile.mood === "Hurt") {
+    return "Little messy, but not a wipe. Give me one clean pass and I am back.";
+  }
+  if (profile.mood === "Proud") {
+    return `That last chest felt good. ${enemy ? `We clipped ${enemy} on the way out.` : "Let's keep that energy."}`;
+  }
+  return "Keep vibecoding. I am bottling the effort until you want the payoff.";
 }
 function waitingLine(profile, session) {
   if (!session) {
@@ -1001,6 +1034,13 @@ function renderVibeLoop(profile, session) {
   lines.push(border());
   return lines;
 }
+function renderCompanionVoice(state) {
+  const lines = [];
+  lines.push(border("Companion"));
+  lines.push(row(companionVoice(state.profile, state.currentSession, state)));
+  lines.push(border());
+  return lines;
+}
 function renderBurstCache(state) {
   const lines = [];
   lines.push(border("Burst Cache"));
@@ -1077,6 +1117,7 @@ function renderPersistedPanel(state) {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
+    ...renderCompanionVoice(state),
     ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),

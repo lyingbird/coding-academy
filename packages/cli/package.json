@@ -7,6 +7,7 @@
     "academy-relay": "./dist/index.js"
   },
   "scripts": {
+    "start": "tsx src/index.ts start",
     "build": "tsup src/index.ts --format esm --dts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "demo": "tsx src/index.ts demo",
@@ -15,6 +16,7 @@
     "watch": "tsx src/index.ts watch",
     "strategy": "tsx src/index.ts strategy",
     "burst": "tsx src/index.ts burst",
+    "check-in": "tsx src/index.ts check-in",
     "ingest": "tsx src/index.ts ingest",
     "relay": "tsx src/index.ts relay",
     "relay-file": "tsx src/index.ts relay-file",

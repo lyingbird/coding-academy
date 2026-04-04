@@ -35,7 +35,10 @@ const enemyGlyphByCategory: Record<EnemyCategory, string> = {
 
 function padRight(input: string, width: number): string {
   if (input.length >= width) {
-    return input.slice(0, width);
+    if (width <= 1) {
+      return input.slice(0, width);
+    }
+    return `${input.slice(0, width - 1)}…`;
   }
   return input + " ".repeat(width - input.length);
 }
@@ -74,6 +77,41 @@ function strategyHint(strategy: StrategyMode): string {
     case "Rush":
       return "Charge turns clean hits into combo";
   }
+}
+
+function companionVoice(profile: HeroProfile, session?: SessionState, state?: PersistedState): string {
+  const enemy = session?.enemyName ?? state?.burstBank.lastEnemyName;
+  if (session?.state === "Battle" || session?.state === "Cast") {
+    switch (profile.strategy) {
+      case "Cozy":
+        return `I see ${enemy ?? "the problem"}. Slow hands, clean win.`;
+      case "Flow":
+        return `Thread is warm. ${enemy ?? "This one"} will break if we keep rhythm.`;
+      case "Rush":
+        return `${enemy ?? "This thing"} is almost open. Say the word and I spike it.`;
+    }
+  }
+
+  if (profile.charge >= 4) {
+    switch (profile.strategy) {
+      case "Cozy":
+        return "We have enough charge. Cash it gently and keep the streak safe.";
+      case "Flow":
+        return "Charge is ripe. One check-in and we turn this run into momentum.";
+      case "Rush":
+        return "Battery is hot. Pull me over and let me burst.";
+    }
+  }
+
+  if (profile.mood === "Hurt") {
+    return "Little messy, but not a wipe. Give me one clean pass and I am back.";
+  }
+
+  if (profile.mood === "Proud") {
+    return `That last chest felt good. ${enemy ? `We clipped ${enemy} on the way out.` : "Let's keep that energy."}`;
+  }
+
+  return "Keep vibecoding. I am bottling the effort until you want the payoff.";
 }
 
 function waitingLine(profile: HeroProfile, session?: SessionState): string {
@@ -198,6 +236,14 @@ function renderVibeLoop(profile: HeroProfile, session?: SessionState): string[] 
   return lines;
 }
 
+function renderCompanionVoice(state: PersistedState): string[] {
+  const lines: string[] = [];
+  lines.push(border("Companion"));
+  lines.push(row(companionVoice(state.profile, state.currentSession, state)));
+  lines.push(border());
+  return lines;
+}
+
 function renderBurstCache(state: PersistedState): string[] {
   const lines: string[] = [];
   lines.push(border("Burst Cache"));
@@ -287,6 +333,7 @@ export function renderPersistedPanel(state: PersistedState): string {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
+    ...renderCompanionVoice(state),
     ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
@@ -307,17 +354,43 @@ export function renderUpdatePanel(update: EngineUpdate, state: PersistedState): 
 
 export function renderBurstResult(result: BurstResult): string {
   const lines: string[] = [];
-  lines.push(border("Burst Release"));
+  lines.push(border("Check-In Burst"));
   if (result.power === 0) {
     lines.push(row("No fresh vibe is stored yet."));
     lines.push(row("Go do a little vibecoding, then come back and burst."));
     lines.push(border());
     return lines.join("\n");
   }
-  lines.push(row(`${result.mode} release | ${result.grade} | ${result.effortTag}`));
-  lines.push(row(`Spent ~${result.estimatedTokens} tok and ${result.chargeSpent} charge`));
+  lines.push(row(`${result.grade} ${result.mode} release | ${result.effortTag}`));
+  lines.push(row(`You bottled ~${result.estimatedTokens} tok and spent ${result.chargeSpent} charge.`));
   lines.push(row(`XP +${result.xpGain} | Focus +${result.focusGain} | Clues +${result.cluesGain}`));
-  lines.push(row(`Combo +${result.comboGain}${result.chestItem ? ` | Chest ${result.chestItem}` : ""}`));
+  lines.push(row(`Combo +${result.comboGain}${result.chestItem ? ` | Loot ${result.chestItem}` : ""}`));
+  lines.push(row(result.grade === "Blazing"
+    ? "That was a real pop. Worth the tab switch."
+    : result.grade === "Hot"
+      ? "Solid release. The run had real heat in it."
+      : result.grade === "Warm"
+        ? "Nice little payout. Enough to keep the loop sweet."
+        : "Quiet release, but it still moved the hero forward."));
   lines.push(border());
+  return lines.join("\n");
+}
+
+export function renderLobby(state: PersistedState): string {
+  const lines: string[] = [];
+  lines.push(border("Coding Academy"));
+  lines.push(row("Vibecode normally. Check in when you want the payoff."));
+  lines.push(row());
+  lines.push(row("Fast start:"));
+  lines.push(row("- pnpm codex -- --help"));
+  lines.push(row("- pnpm gemini -- --help"));
+  lines.push(row("- pnpm qwen -- --help"));
+  lines.push(row("- pnpm openai -- --help"));
+  lines.push(row());
+  lines.push(row("Then come back for the release:"));
+  lines.push(row("- pnpm check-in"));
+  lines.push(border());
+  lines.push(...renderOverview(state.profile, state.currentSession));
+  lines.push(...renderCompanionVoice(state));
   return lines.join("\n");
 }

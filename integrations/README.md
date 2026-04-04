@@ -86,6 +86,10 @@ Each generated bridge starter includes:
 If you do not want to write a bridge yet, wrap a real CLI command directly:
 
 ```bash
+pnpm codex -- --help
+pnpm gemini -- --help
+pnpm qwen -- --help
+pnpm openai -- --help
 pnpm wrap codex --cmd node -- -e "console.log('codex batch ok')"
 pnpm wrap:codex -- --help
 pnpm wrap:gemini -- --help

@@ -33,11 +33,17 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 ## Commands
 
 - `pnpm install`
+- `pnpm start`
 - `pnpm play`
 - `pnpm demo`
 - `pnpm status`
 - `pnpm panel`
 - `pnpm watch`
+- `pnpm check-in`
+- `pnpm codex`
+- `pnpm gemini`
+- `pnpm qwen`
+- `pnpm openai`
 - `pnpm ingest`
 - `pnpm relay`
 - `pnpm relay:file`
@@ -93,13 +99,34 @@ claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .cl
 
 ## Start Playing
 
-Smartest entry point:
+Player-first entry point:
+
+```bash
+pnpm start
+```
+
+The loop is intentionally simple:
+
+```bash
+pnpm codex -- --help
+pnpm gemini -- --help
+pnpm qwen -- --help
+pnpm openai -- --help
+```
+
+Then cash out the run:
+
+```bash
+pnpm check-in
+```
+
+Legacy smart entry point:
 
 ```bash
 pnpm play
 ```
 
-What `pnpm play` does:
+What `pnpm play` still does:
 
 - launches real Claude mode if your Claude session is healthy
 - falls back to the local demo if Claude auth or org access is broken
@@ -134,6 +161,7 @@ Cash out a quiet vibecoding stretch when you feel like checking in:
 
 ```bash
 pnpm burst
+pnpm check-in
 pnpm burst cozy
 pnpm burst flow
 pnpm burst rush
