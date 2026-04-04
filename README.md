@@ -28,6 +28,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 ## Commands
 
 - `pnpm install`
+- `pnpm play`
 - `pnpm demo`
 - `pnpm status`
 - `pnpm panel`
@@ -52,11 +53,29 @@ From GitHub:
 claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy
 ```
 
-Quick local dev run:
+## Start Playing
+
+Smartest entry point:
 
 ```bash
-claude --plugin-dir ./plugins/coding-academy
+pnpm play
 ```
+
+What `pnpm play` does:
+
+- launches real Claude mode if your Claude session is healthy
+- falls back to the local demo if Claude auth or org access is broken
+- tells you exactly how to recover real mode
+
+Direct real-mode run:
+
+```bash
+claude
+```
+
+Inside Claude, use:
+
+- `/academy:status`
 
 ## What Already Works
 
