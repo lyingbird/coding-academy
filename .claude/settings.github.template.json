@@ -1,0 +1,11 @@
+{
+  "extraKnownMarketplaces": {
+    "coding-academy": {
+      "source": "github",
+      "repo": "OWNER/REPO"
+    }
+  },
+  "enabledPlugins": {
+    "coding-academy@coding-academy": true
+  }
+}

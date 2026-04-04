@@ -1,0 +1,11 @@
+{
+  "extraKnownMarketplaces": {
+    "coding-academy": {
+      "source": "directory",
+      "path": "."
+    }
+  },
+  "enabledPlugins": {
+    "coding-academy@coding-academy": true
+  }
+}

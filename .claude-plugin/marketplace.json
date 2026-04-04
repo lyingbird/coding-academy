@@ -1,0 +1,17 @@
+{
+  "name": "coding-academy",
+  "owner": {
+    "name": "Coding Academy"
+  },
+  "metadata": {
+    "description": "Lightweight hero companion plugins for Claude Code.",
+    "pluginRoot": "."
+  },
+  "plugins": [
+    {
+      "name": "coding-academy",
+      "source": "./plugins/coding-academy",
+      "description": "A lightweight CLI hero companion for Claude Code."
+    }
+  ]
+}

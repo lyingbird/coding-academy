@@ -1,0 +1,20 @@
+{
+  "name": "@academy/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "academy": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "demo": "tsx src/index.ts demo",
+    "status": "tsx src/index.ts status",
+    "panel": "tsx src/index.ts panel",
+    "watch": "tsx src/index.ts watch"
+  },
+  "dependencies": {
+    "@academy/runtime": "workspace:*",
+    "@academy/shared": "workspace:*"
+  }
+}

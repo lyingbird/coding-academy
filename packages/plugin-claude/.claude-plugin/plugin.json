@@ -1,0 +1,8 @@
+{
+  "name": "coding-academy",
+  "version": "0.1.0",
+  "description": "A lightweight CLI hero companion for Claude Code.",
+  "author": {
+    "name": "Coding Academy"
+  }
+}
