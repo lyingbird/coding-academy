@@ -532,6 +532,48 @@ async function runDoctor() {
   const store = new FileStore();
   const persisted = await store.load();
   const adapters = adapterCatalog.filter((item) => item.platform !== "generic-cli");
+  const report = adapters.map((descriptor) => {
+    const envVar = envVarForAdapter(descriptor.platform);
+    const resolvedCommand = process.env[envVar] ?? defaultExecutableForAdapter(descriptor.platform) ?? "(unset)";
+    const available = resolvedCommand !== "(unset)" && isCommandAvailable(resolvedCommand);
+    const probe = available ? probeExecutable(resolvedCommand) : { ok: false, reason: "Command not found on PATH." };
+    const readiness = available && probe.ok ? "ready" : available ? "needs-fix" : "missing";
+    return {
+      label: descriptor.label,
+      platform: descriptor.platform,
+      command: resolvedCommand,
+      status: readiness,
+      override: envVar,
+      note: probe.ok ? undefined : probe.reason,
+    };
+  });
+
+  if (process.argv.includes("--json")) {
+    console.log(
+      JSON.stringify(
+        {
+          platform: process.platform,
+          arch: process.arch,
+          node: process.version,
+          statePath: store.path,
+          adapters: report,
+          hero: {
+            name: persisted.profile.name,
+            level: persisted.profile.level,
+            profession: persisted.profile.dominantProfession,
+          },
+          burstCache: {
+            estimatedTokens: persisted.burstBank.estimatedTokens,
+            wins: persisted.burstBank.victories,
+            checks: persisted.burstBank.validations,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   console.log("Coding Academy Doctor");
   console.log(`Platform: ${process.platform} ${process.arch}`);
@@ -539,18 +581,13 @@ async function runDoctor() {
   console.log(`State: ${store.path}`);
   console.log();
 
-  for (const descriptor of adapters) {
-    const envVar = envVarForAdapter(descriptor.platform);
-    const resolvedCommand = process.env[envVar] ?? defaultExecutableForAdapter(descriptor.platform) ?? "(unset)";
-    const available = resolvedCommand !== "(unset)" && isCommandAvailable(resolvedCommand);
-    const probe = available ? probeExecutable(resolvedCommand) : { ok: false, reason: "Command not found on PATH." };
-    const readiness = available && probe.ok ? "ready" : available ? "needs-fix" : "missing";
-    console.log(`- ${descriptor.label}`);
-    console.log(`  command: ${resolvedCommand}`);
-    console.log(`  status: ${readiness}`);
-    console.log(`  override: ${envVar}`);
-    if (!probe.ok && probe.reason) {
-      console.log(`  note: ${probe.reason}`);
+  for (const item of report) {
+    console.log(`- ${item.label}`);
+    console.log(`  command: ${item.command}`);
+    console.log(`  status: ${item.status}`);
+    console.log(`  override: ${item.override}`);
+    if (item.note) {
+      console.log(`  note: ${item.note}`);
     }
   }
 

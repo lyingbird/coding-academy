@@ -1,0 +1,59 @@
+name: cross-platform-smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    env:
+      ACADEMY_CODEX_CLI_CMD: node
+      ACADEMY_GEMINI_CLI_CMD: node
+      ACADEMY_OPENAI_CLI_CMD: node
+      ACADEMY_QWEN_CODE_CMD: node
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Health JSON
+        run: pnpm health -- --json
+
+      - name: Wrapper smoke
+        run: |
+          pnpm codex -- --version
+          pnpm gemini -- --version
+          pnpm openai -- --version
+          pnpm qwen -- --version
+
+      - name: Burst smoke
+        run: pnpm check-in

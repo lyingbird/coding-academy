@@ -110,6 +110,7 @@ Check what is actually ready on this machine:
 
 ```bash
 pnpm health
+pnpm health -- --json
 ```
 
 The loop is intentionally simple:
@@ -149,6 +150,13 @@ The current runtime and wrapper flow are designed to work on both macOS and Wind
 - generated bridge starters now inherit the same Windows/macOS shell behavior
 
 Use `pnpm health` on any machine to see which provider commands are ready, missing, or need fixing.
+
+This repo also ships a GitHub Actions smoke matrix for:
+
+- Windows
+- macOS
+
+It typechecks, builds, runs `pnpm health -- --json`, and executes wrapper smoke runs with safe `node --version` overrides.
 
 Direct real-mode run:
 
