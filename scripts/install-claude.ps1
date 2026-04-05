@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
 
+$marketplaceName = "coding-academy"
 $marketplaceRepo = "lyingbird/coding-academy"
 $pluginName = "coding-academy"
 $pluginFullName = "coding-academy@coding-academy"
@@ -13,8 +14,7 @@ function Require-Command {
 }
 
 function Test-ClaudeRunning {
-  $candidates = @("claude", "Claude")
-  foreach ($name in $candidates) {
+  foreach ($name in @("claude", "Claude")) {
     if (Get-Process -Name $name -ErrorAction SilentlyContinue) {
       return $true
     }
@@ -22,41 +22,49 @@ function Test-ClaudeRunning {
   return $false
 }
 
-Write-Host ""
-Write-Host "== Coding Academy installer =="
-Write-Host ""
+function Ensure-Marketplace {
+  $marketplaceList = claude plugin marketplace list 2>$null | Out-String
+  if ($marketplaceList -match "(?m)^\s*>\s+$marketplaceName\s*$") {
+    Write-Host "Refreshing marketplace..."
+    claude plugin marketplace update $marketplaceName | Out-Host
+    return
+  }
 
-Require-Command "claude"
-
-$marketplaceList = claude plugin marketplace list 2>$null | Out-String
-if ($marketplaceList -match "(?m)^\s*>\s+coding-academy\s*$") {
-  Write-Host "Updating marketplace cache..."
-  claude plugin marketplace update coding-academy | Out-Host
-} else {
   Write-Host "Adding marketplace..."
   claude plugin marketplace add $marketplaceRepo --scope user --sparse .claude-plugin plugins | Out-Host
 }
 
-$pluginList = claude plugin list 2>$null | Out-String
-if ($pluginList -match "coding-academy@coding-academy") {
-  Write-Host "Refreshing installed plugin..."
-  claude plugin uninstall $pluginFullName | Out-Null
-}
+function Refresh-Plugin {
+  $pluginList = claude plugin list 2>$null | Out-String
+  if ($pluginList -match [regex]::Escape($pluginFullName)) {
+    Write-Host "Refreshing plugin..."
+    claude plugin uninstall $pluginFullName | Out-Null
+  } else {
+    Write-Host "Installing plugin..."
+  }
 
-Write-Host "Installing plugin..."
-claude plugin install $pluginName | Out-Host
+  claude plugin install $pluginName | Out-Host
+}
 
 Write-Host ""
-Write-Host "Coding Academy is ready."
+Write-Host "Coding Academy setup"
+Write-Host "--------------------"
+Write-Host ""
+
+Require-Command "claude"
+Ensure-Marketplace
+Refresh-Plugin
+
+Write-Host ""
+Write-Host "Done."
 if (Test-ClaudeRunning) {
-  Write-Host "Claude Code appears to be running right now."
-  Write-Host "Please fully close all Claude windows first so the new commands refresh cleanly."
-  Write-Host ""
+  Write-Host "Close every Claude window once so the new slash command refreshes."
 }
-Write-Host "First run:"
+Write-Host ""
+Write-Host "Start in 3 steps:"
 Write-Host "  1. Open any terminal"
 Write-Host "  2. Run: claude"
-Write-Host "  3. Enter: /coding-academy"
-Write-Host "  4. Keep coding normally while the buddy pushes maps on the side"
-Write-Host "  5. Cash out with: /coding-academy-check-in"
+Write-Host "  3. In Claude, type: /coding-academy"
+Write-Host ""
+Write-Host "When you want a payoff, type: /coding-academy-check-in"
 Write-Host ""

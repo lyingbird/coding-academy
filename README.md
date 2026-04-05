@@ -10,6 +10,16 @@ The product target is simple:
 
 It is inspired by Stone Story RPG, Battle! Brave Academy, bongocat-style companions, and the always-visible `/buddy` interaction pattern.
 
+Fastest path:
+
+- install once
+- open `claude` anywhere
+- type `/coding-academy`
+
+Short guide:
+
+- [Quickstart](D:\工作\CLI_GAMEPLAY\QUICKSTART.md)
+
 The current repo already has the shared runtime and host communication backbone.
 The next product step is to turn that backbone into a true sidecar-first experience.
 

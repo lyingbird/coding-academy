@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+marketplace_name="coding-academy"
 marketplace_repo="lyingbird/coding-academy"
 plugin_name="coding-academy"
 plugin_full_name="coding-academy@coding-academy"
@@ -20,39 +21,47 @@ claude_running() {
   return 1
 }
 
+ensure_marketplace() {
+  if claude plugin marketplace list 2>/dev/null | grep -Eq "^[[:space:]]*>[[:space:]]+${marketplace_name}[[:space:]]*$"; then
+    echo "Refreshing marketplace..."
+    claude plugin marketplace update "$marketplace_name"
+    return
+  fi
+
+  echo "Adding marketplace..."
+  claude plugin marketplace add "$marketplace_repo" --scope user --sparse .claude-plugin plugins
+}
+
+refresh_plugin() {
+  if claude plugin list 2>/dev/null | grep -Fq "$plugin_full_name"; then
+    echo "Refreshing plugin..."
+    claude plugin uninstall "$plugin_full_name" >/dev/null || true
+  else
+    echo "Installing plugin..."
+  fi
+
+  claude plugin install "$plugin_name"
+}
+
 echo
-echo "== Coding Academy installer =="
+echo "Coding Academy setup"
+echo "--------------------"
 echo
 
 require_command claude
-
-if claude plugin marketplace list 2>/dev/null | grep -Eq '^[[:space:]]*>[[:space:]]+coding-academy[[:space:]]*$'; then
-  echo "Updating marketplace cache..."
-  claude plugin marketplace update coding-academy
-else
-  echo "Adding marketplace..."
-  claude plugin marketplace add "$marketplace_repo" --scope user --sparse .claude-plugin plugins
-fi
-
-if claude plugin list 2>/dev/null | grep -Fq "$plugin_full_name"; then
-  echo "Refreshing installed plugin..."
-  claude plugin uninstall "$plugin_full_name" >/dev/null || true
-fi
-
-echo "Installing plugin..."
-claude plugin install "$plugin_name"
+ensure_marketplace
+refresh_plugin
 
 echo
-echo "Coding Academy is ready."
+echo "Done."
 if claude_running; then
-  echo "Claude Code appears to be running right now."
-  echo "Please fully close all Claude windows first so the new commands refresh cleanly."
-  echo
+  echo "Close every Claude window once so the new slash command refreshes."
 fi
-echo "First run:"
+echo
+echo "Start in 3 steps:"
 echo "  1. Open any terminal"
 echo "  2. Run: claude"
-echo "  3. Enter: /coding-academy"
-echo "  4. Keep coding normally while the buddy pushes maps on the side"
-echo "  5. Cash out with: /coding-academy-check-in"
+echo "  3. In Claude, type: /coding-academy"
+echo
+echo "When you want a payoff, type: /coding-academy-check-in"
 echo
