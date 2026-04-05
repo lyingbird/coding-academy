@@ -26,6 +26,9 @@ function createBurstBank() {
     victories: 0
   };
 }
+function createBurstRecapHistory() {
+  return [];
+}
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
@@ -106,6 +109,12 @@ function namedEnemy(category, rawEvent) {
 }
 function rolledChestItem(rawEvent) {
   const index = hashText(`${rawEvent.sessionId}:${rawEvent.type}:chest`) % CHEST_POOL.length;
+  return CHEST_POOL[index] ?? CHEST_POOL[0];
+}
+function rolledBurstChestItem(bank, strategy) {
+  const index = hashText(
+    `${bank.estimatedTokens}:${bank.prompts}:${bank.edits}:${bank.validations}:${strategy}:burst`
+  ) % CHEST_POOL.length;
   return CHEST_POOL[index] ?? CHEST_POOL[0];
 }
 function classifyEnemy(rawEvent) {
@@ -203,6 +212,180 @@ function updateBurstBank(bank, rawEvent, gameplayEvents) {
       }
     }
   }
+}
+function burstEffortTag(bank) {
+  const exploration = bank.reads;
+  const patching = bank.edits;
+  const validation = bank.validations;
+  const maxValue = Math.max(exploration, patching, validation);
+  if (maxValue === 0) {
+    return "mixed";
+  }
+  if (exploration === maxValue && exploration > patching && exploration > validation) {
+    return "exploration-heavy";
+  }
+  if (patching === maxValue && patching > exploration && patching > validation) {
+    return "patch-heavy";
+  }
+  if (validation === maxValue && validation > exploration && validation > patching) {
+    return "validation-heavy";
+  }
+  return "mixed";
+}
+function burstGrade(power) {
+  if (power >= 12) {
+    return "Blazing";
+  }
+  if (power >= 8) {
+    return "Hot";
+  }
+  if (power >= 4) {
+    return "Warm";
+  }
+  return "Quiet";
+}
+function summarizeBurstRecap(state, result) {
+  const recent = state.activityLog.slice(-8);
+  const enemyCounts = /* @__PURE__ */ new Map();
+  for (const event of recent) {
+    if (event.enemyName) {
+      enemyCounts.set(event.enemyName, (enemyCounts.get(event.enemyName) ?? 0) + 1);
+    }
+  }
+  const primaryEnemy = [...enemyCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? state.burstBank.lastEnemyName;
+  const title = primaryEnemy ? result.grade === "Blazing" || result.grade === "Hot" ? `${primaryEnemy} broke open` : `${primaryEnemy} paid out` : `${result.grade} ${result.mode} release`;
+  let summary = "A quiet pocket of work still moved the hero forward.";
+  switch (result.effortTag) {
+    case "exploration-heavy":
+      summary = "Most of this payout came from clue-hunting, repo reading, and finding the safe path.";
+      break;
+    case "patch-heavy":
+      summary = "This run leaned on edits and patch pressure. Fewer words, more blade work.";
+      break;
+    case "validation-heavy":
+      summary = "This payout was forged in checks. You kept tightening the loop until the run gave way.";
+      break;
+    case "mixed":
+      summary = "This was a mixed run: scouting, patching, and checking all fed the release.";
+      break;
+  }
+  if (result.grade === "Blazing") {
+    summary = `${summary} It landed with real heat.`;
+  } else if (result.grade === "Hot") {
+    summary = `${summary} Strong enough to feel like a proper check-in.`;
+  }
+  return {
+    timestamp: nowIso(),
+    title,
+    summary,
+    mode: result.mode,
+    grade: result.grade,
+    effortTag: result.effortTag,
+    primaryEnemy,
+    loot: result.chestItem,
+    estimatedTokens: result.estimatedTokens
+  };
+}
+function burstPower(profile, bank) {
+  const tokenPower = Math.floor(bank.estimatedTokens / 120);
+  const activityPower = bank.prompts + bank.reads + bank.edits + bank.validations;
+  const victoryPower = bank.victories * 2;
+  const chargePower = profile.charge;
+  return Math.max(1, tokenPower + Math.floor(activityPower / 3) + victoryPower + chargePower);
+}
+function previewBurst(state) {
+  const mode = state.profile.strategy;
+  const hasWork = state.burstBank.estimatedTokens > 0 || state.burstBank.prompts > 0 || state.burstBank.reads > 0 || state.burstBank.edits > 0 || state.burstBank.validations > 0 || state.burstBank.victories > 0;
+  if (!hasWork) {
+    return {
+      mode,
+      power: 0,
+      grade: "Quiet",
+      effortTag: "mixed",
+      xpGain: 0,
+      focusGain: 0,
+      cluesGain: 0,
+      comboGain: 0,
+      estimatedTokens: 0,
+      chargeSpent: 0
+    };
+  }
+  const power = burstPower(state.profile, state.burstBank);
+  const grade = burstGrade(power);
+  const effortTag = burstEffortTag(state.burstBank);
+  const chargeSpent = Math.min(state.profile.charge, Math.max(1, Math.ceil(power / 3)));
+  let xpGain = power * 2;
+  let focusGain = 0;
+  let cluesGain = 0;
+  let comboGain = 0;
+  let chestItem;
+  switch (mode) {
+    case "Cozy":
+      xpGain += 2;
+      focusGain = 1;
+      break;
+    case "Flow":
+      focusGain = Math.max(1, Math.ceil(power / 3));
+      cluesGain = Math.max(1, Math.ceil(power / 3));
+      break;
+    case "Rush":
+      comboGain = Math.max(1, Math.ceil(power / 3));
+      if (power >= 6) {
+        chestItem = rolledBurstChestItem(state.burstBank, mode);
+      }
+      break;
+  }
+  if (!chestItem && power >= 10) {
+    chestItem = rolledBurstChestItem(state.burstBank, mode);
+  }
+  return {
+    mode,
+    power,
+    grade,
+    effortTag,
+    xpGain,
+    focusGain,
+    cluesGain,
+    comboGain,
+    chestItem,
+    estimatedTokens: state.burstBank.estimatedTokens,
+    chargeSpent
+  };
+}
+function performBurst(state) {
+  const result = previewBurst(state);
+  if (result.power === 0) {
+    return result;
+  }
+  const recap = summarizeBurstRecap(state, result);
+  state.profile.xp += result.xpGain;
+  state.profile.focus = Math.min(9, state.profile.focus + result.focusGain);
+  state.profile.clues += result.cluesGain;
+  state.profile.combo += result.comboGain;
+  state.profile.maxCombo = Math.max(state.profile.maxCombo, state.profile.combo);
+  spendCharge(state.profile, result.chargeSpent);
+  if (result.mode === "Cozy") {
+    state.profile.hp = Math.min(state.profile.maxHp, state.profile.hp + Math.max(1, Math.ceil(result.power / 4)));
+  }
+  if (result.chestItem) {
+    state.profile.chestsOpened += 1;
+    state.profile.lastChestItem = result.chestItem;
+    state.profile.souvenirs = [...state.profile.souvenirs, result.chestItem].slice(-12);
+  }
+  while (state.profile.xp >= LEVEL_XP) {
+    state.profile.xp -= LEVEL_XP;
+    state.profile.level += 1;
+    state.profile.maxHp += 2;
+    state.profile.hp = state.profile.maxHp;
+    state.profile.state = "LevelUp";
+    state.profile.mood = "Proud";
+  }
+  state.burstBank = createBurstBank();
+  state.recentBursts = [recap, ...state.recentBursts ?? []].slice(0, 6);
+  return {
+    ...result,
+    recap
+  };
 }
 function normalizeRawEvent(rawEvent) {
   const events = [];
@@ -486,7 +669,8 @@ var AcademyEngine = class {
       currentSession: state?.currentSession,
       activityLog: state?.activityLog ?? [],
       monsterJournal: state?.monsterJournal ?? [],
-      burstBank: state?.burstBank ?? createBurstBank()
+      burstBank: state?.burstBank ?? createBurstBank(),
+      recentBursts: state?.recentBursts ?? createBurstRecapHistory()
     };
   }
   get snapshot() {
@@ -526,7 +710,7 @@ var AcademyEngine = class {
 
 // ../runtime/src/store.ts
 import { existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, open, readFile, rm, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 function findWorkspaceRoot(startDir) {
   let current = startDir;
@@ -555,7 +739,36 @@ var FileStore = class {
     this.filePath = filePath;
   }
   filePath;
-  async load() {
+  get lockPath() {
+    return `${this.filePath}.lock`;
+  }
+  async sleep(milliseconds) {
+    await new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+  async withLock(fn) {
+    await mkdir(dirname(this.filePath), { recursive: true });
+    const startedAt = Date.now();
+    while (true) {
+      try {
+        const handle = await open(this.lockPath, "wx");
+        try {
+          return await fn();
+        } finally {
+          await handle.close();
+          await rm(this.lockPath, { force: true });
+        }
+      } catch (error) {
+        if (error.code !== "EEXIST") {
+          throw error;
+        }
+        if (Date.now() - startedAt > 1e4) {
+          throw new Error(`Timed out waiting for academy state lock: ${this.lockPath}`);
+        }
+        await this.sleep(50);
+      }
+    }
+  }
+  async loadUnsafe() {
     try {
       const content = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(content);
@@ -583,27 +796,48 @@ var FileStore = class {
         burstBank: {
           ...createBurstBank(),
           ...parsed.burstBank ?? {}
-        }
+        },
+        recentBursts: parsed.recentBursts ?? createBurstRecapHistory()
       };
     } catch {
       return {
         profile: createDefaultProfile(),
         activityLog: [],
         monsterJournal: [],
-        burstBank: createBurstBank()
+        burstBank: createBurstBank(),
+        recentBursts: createBurstRecapHistory()
       };
     }
   }
-  async save(state) {
+  async saveUnsafe(state) {
     await mkdir(dirname(this.filePath), { recursive: true });
     await writeFile(this.filePath, JSON.stringify(state, null, 2), "utf8");
+  }
+  async load() {
+    return this.loadUnsafe();
+  }
+  async save(state) {
+    await this.withLock(async () => {
+      await this.saveUnsafe(state);
+    });
+  }
+  async transact(mutate) {
+    return this.withLock(async () => {
+      const state = await this.loadUnsafe();
+      const result = await mutate(state);
+      await this.saveUnsafe(state);
+      return {
+        state,
+        result
+      };
+    });
   }
   get path() {
     return this.filePath;
   }
 };
 
-// ../runtime/src/claudeHooks.ts
+// ../runtime/src/adapters/claude.ts
 function nowIso2() {
   return (/* @__PURE__ */ new Date()).toISOString();
 }
@@ -817,7 +1051,10 @@ var enemyGlyphByCategory = {
 };
 function padRight(input, width) {
   if (input.length >= width) {
-    return input.slice(0, width);
+    if (width <= 3) {
+      return input.slice(0, width);
+    }
+    return `${input.slice(0, width - 3)}...`;
   }
   return input + " ".repeat(width - input.length);
 }
@@ -851,6 +1088,36 @@ function strategyHint(strategy) {
     case "Rush":
       return "Charge turns clean hits into combo";
   }
+}
+function companionVoice(profile, session, state) {
+  const enemy = session?.enemyName ?? state?.burstBank.lastEnemyName;
+  if (session?.state === "Battle" || session?.state === "Cast") {
+    switch (profile.strategy) {
+      case "Cozy":
+        return `I see ${enemy ?? "the problem"}. Slow hands, clean win.`;
+      case "Flow":
+        return `Thread is warm. ${enemy ?? "This one"} will break if we keep rhythm.`;
+      case "Rush":
+        return `${enemy ?? "This thing"} is almost open. Say the word and I spike it.`;
+    }
+  }
+  if (profile.charge >= 4) {
+    switch (profile.strategy) {
+      case "Cozy":
+        return "We have enough charge. Cash it gently and keep the streak safe.";
+      case "Flow":
+        return "Charge is ripe. One check-in and we turn this run into momentum.";
+      case "Rush":
+        return "Battery is hot. Pull me over and let me burst.";
+    }
+  }
+  if (profile.mood === "Hurt") {
+    return "Little messy, but not a wipe. Give me one clean pass and I am back.";
+  }
+  if (profile.mood === "Proud") {
+    return `That last chest felt good. ${enemy ? `We clipped ${enemy} on the way out.` : "Let's keep that energy."}`;
+  }
+  return "Keep vibecoding. I am bottling the effort until you want the payoff.";
 }
 function waitingLine(profile, session) {
   if (!session) {
@@ -953,6 +1220,29 @@ function renderVibeLoop(profile, session) {
   lines.push(border());
   return lines;
 }
+function renderCompanionVoice(state) {
+  const lines = [];
+  lines.push(border("Companion"));
+  lines.push(row(companionVoice(state.profile, state.currentSession, state)));
+  lines.push(border());
+  return lines;
+}
+function renderLatestCheckIn(recaps) {
+  const lines = [];
+  lines.push(border("Latest Check-In"));
+  const latest = recaps[0];
+  if (!latest) {
+    lines.push(row("No burst recap yet. Bring back a fresh run."));
+    lines.push(border());
+    return lines;
+  }
+  lines.push(row(latest.title));
+  lines.push(row(`${latest.grade} | ${latest.mode} | ${latest.effortTag}`));
+  lines.push(row(`~${latest.estimatedTokens} tok${latest.loot ? ` | Loot ${latest.loot}` : ""}`));
+  lines.push(row(latest.summary));
+  lines.push(border());
+  return lines;
+}
 function renderBurstCache(state) {
   const lines = [];
   lines.push(border("Burst Cache"));
@@ -1029,6 +1319,8 @@ function renderPersistedPanel(state) {
   const lines = [
     ...renderOverview(state.profile, state.currentSession),
     ...renderVibeLoop(state.profile, state.currentSession),
+    ...renderCompanionVoice(state),
+    ...renderLatestCheckIn(state.recentBursts),
     ...renderBurstCache(state),
     ...renderDuel(state.currentSession),
     ...renderRecentFeed(state.activityLog),
@@ -1037,10 +1329,39 @@ function renderPersistedPanel(state) {
   ];
   return lines.join("\n");
 }
+function renderBurstResult(result) {
+  const lines = [];
+  lines.push(border("Check-In Burst"));
+  if (result.power === 0) {
+    lines.push(row("No fresh vibe is stored yet."));
+    lines.push(row("Go do a little vibecoding, then come back and burst."));
+    lines.push(border());
+    return lines.join("\n");
+  }
+  lines.push(row(`${result.grade} ${result.mode} release | ${result.effortTag}`));
+  lines.push(row(`You bottled ~${result.estimatedTokens} tok and spent ${result.chargeSpent} charge.`));
+  lines.push(row(`XP +${result.xpGain} | Focus +${result.focusGain} | Clues +${result.cluesGain}`));
+  lines.push(row(`Combo +${result.comboGain}${result.chestItem ? ` | Loot ${result.chestItem}` : ""}`));
+  lines.push(
+    row(
+      result.grade === "Blazing" ? "That was a real pop. Worth the tab switch." : result.grade === "Hot" ? "Solid release. The run had real heat in it." : result.grade === "Warm" ? "Nice little payout. Enough to keep the loop sweet." : "Quiet release, but it still moved the hero forward."
+    )
+  );
+  if (result.recap) {
+    lines.push(row());
+    lines.push(row(result.recap.title));
+    lines.push(row(result.recap.summary));
+  }
+  lines.push(border());
+  return lines.join("\n");
+}
 
 export {
+  previewBurst,
+  performBurst,
   AcademyEngine,
   FileStore,
   mapClaudeHookInputToRawEvents,
-  renderPersistedPanel
+  renderPersistedPanel,
+  renderBurstResult
 };

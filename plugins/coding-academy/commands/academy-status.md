@@ -1,6 +1,5 @@
 ---
 description: Show the current Coding Academy companion panel and summarize what the hero is doing.
-disable-model-invocation: true
 allowed-tools: Bash(node *)
 ---
 

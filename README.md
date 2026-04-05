@@ -98,7 +98,37 @@ From GitHub:
 claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy
 ```
 
-## Start Playing
+## Claude Player Flow
+
+The real player flow is not `pnpm`, and it is not tied to this repo folder after install.
+
+It is:
+
+1. install the plugin once in a system terminal
+2. open `claude` from any terminal
+3. type `/coding-academy`
+
+Inside Claude, the intended command is:
+
+```text
+/coding-academy
+```
+
+To cash out a run without leaving Claude:
+
+```text
+/coding-academy-check-in
+```
+
+The older lower-level status command still exists:
+
+```text
+/academy:status
+```
+
+`pnpm` commands below are now contributor and local-dev paths, not the primary player path.
+
+## Local Contributor Flow
 
 Player-first entry point:
 
@@ -168,10 +198,6 @@ Direct real-mode run:
 ```bash
 claude
 ```
-
-Inside Claude, use:
-
-- `/academy:status`
 
 Choose a lightweight vibe strategy any time:
 

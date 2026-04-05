@@ -34,17 +34,14 @@ The status script reads the same state store and renders the terminal companion 
 
 ## Install
 
-Fastest path:
+Recommended player install from GitHub:
+
+- `claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins`
+- `claude plugin install coding-academy`
+
+Dev-only session install:
 
 - `claude --plugin-dir ./plugins/coding-academy`
-
-One-line local install from the repo root:
-
-- `claude plugin marketplace add . && claude plugin install coding-academy`
-
-Recommended GitHub install after publishing:
-
-- `claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy`
 
 Bundled local marketplace path:
 
@@ -53,3 +50,20 @@ Bundled local marketplace path:
 - repo plugin: `plugins/coding-academy`
 - plugin bundle: `dist/claude-plugin/coding-academy`
 - marketplace manifest: `dist/claude-marketplace/marketplace.json`
+
+## Player Entry
+
+After install, the intended player flow is:
+
+- open `claude`
+- type `/coding-academy`
+
+To cash out a run without leaving Claude:
+
+- `/coding-academy-check-in`
+
+Lower-level status command still exists:
+
+- `/academy:status`
+
+`pnpm` commands in the repo are for contributors and local development, not the primary player path.

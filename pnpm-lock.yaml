@@ -30,7 +30,11 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/plugin-claude: {}
+  packages/plugin-claude:
+    dependencies:
+      '@academy/runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/runtime:
     dependencies:
