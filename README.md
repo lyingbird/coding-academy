@@ -206,16 +206,42 @@ This is the key compatibility contract for future GPT or domestic AI wrappers:
 
 ## Install
 
-From a local clone:
+Fastest install for Windows PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/lyingbird/coding-academy/main/scripts/install-claude.ps1 | iex"
+```
+
+Fastest install for macOS / Linux:
 
 ```bash
-claude plugin marketplace add . && claude plugin install coding-academy
+curl -fsSL https://raw.githubusercontent.com/lyingbird/coding-academy/main/scripts/install-claude.sh | bash
+```
+
+After install, from any folder:
+
+```bash
+claude
+```
+
+Then inside Claude Code:
+
+```text
+/coding-academy
+```
+
+From a local clone:
+
+```powershell
+claude plugin marketplace add .
+claude plugin install coding-academy
 ```
 
 From GitHub:
 
-```bash
-claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy
+```powershell
+claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins
+claude plugin install coding-academy
 ```
 
 ## Claude Integration
