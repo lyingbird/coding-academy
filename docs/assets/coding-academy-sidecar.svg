@@ -1,0 +1,24 @@
+<svg width="1200" height="560" viewBox="0 0 1200 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="560" rx="28" fill="#07101C"/>
+  <rect x="40" y="40" width="730" height="480" rx="22" fill="#0F172A" stroke="#334155" stroke-width="2"/>
+  <rect x="802" y="40" width="358" height="480" rx="22" fill="#08111D" stroke="#334155" stroke-width="2"/>
+
+  <text x="76" y="96" fill="#93C5FD" font-size="24" font-family="Consolas, 'Courier New', monospace">claude</text>
+  <text x="76" y="150" fill="#E2E8F0" font-size="24" font-family="Consolas, 'Courier New', monospace">&gt; explain why this test is flaky</text>
+  <text x="76" y="204" fill="#CBD5E1" font-size="22" font-family="Consolas, 'Courier New', monospace">The helper mutates shared state between runs...</text>
+  <text x="76" y="238" fill="#CBD5E1" font-size="22" font-family="Consolas, 'Courier New', monospace">Let's isolate the cache and rerun.</text>
+  <text x="76" y="420" fill="#64748B" font-size="18" font-family="Consolas, 'Courier New', monospace">You work here.</text>
+
+  <rect x="832" y="76" width="298" height="84" rx="14" fill="#0F172A" stroke="#F59E0B" stroke-width="2"/>
+  <text x="860" y="112" fill="#FEF3C7" font-size="18" font-family="Consolas, 'Courier New', monospace">Flaky Slime showed itself.</text>
+  <text x="860" y="138" fill="#FCD34D" font-size="16" font-family="Consolas, 'Courier New', monospace">I am on it. Keep coding.</text>
+
+  <text x="870" y="254" fill="#A7F3D0" font-size="50" font-family="Consolas, 'Courier New', monospace">/\_/\</text>
+  <text x="862" y="304" fill="#A7F3D0" font-size="50" font-family="Consolas, 'Courier New', monospace">( &gt;o&lt; )</text>
+  <text x="872" y="356" fill="#A7F3D0" font-size="50" font-family="Consolas, 'Courier New', monospace">/ ^ \\</text>
+
+  <rect x="844" y="394" width="274" height="88" rx="14" fill="#0F172A" stroke="#334155" stroke-width="2"/>
+  <text x="868" y="426" fill="#E2E8F0" font-size="18" font-family="Consolas, 'Courier New', monospace">foe: Flaky Slime</text>
+  <text x="868" y="452" fill="#CBD5E1" font-size="18" font-family="Consolas, 'Courier New', monospace">hp 10/10  charge 3  combo 2</text>
+  <text x="868" y="478" fill="#94A3B8" font-size="16" font-family="Consolas, 'Courier New', monospace">now: pressing the line</text>
+</svg>

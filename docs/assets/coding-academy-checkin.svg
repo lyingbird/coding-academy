@@ -1,0 +1,16 @@
+<svg width="1200" height="520" viewBox="0 0 1200 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="520" rx="28" fill="#08111D"/>
+  <rect x="96" y="62" width="1008" height="396" rx="24" fill="#0F172A" stroke="#334155" stroke-width="2"/>
+  <text x="136" y="124" fill="#F8FAFC" font-size="42" font-family="Consolas, 'Courier New', monospace" font-weight="700">Check-In Burst</text>
+  <text x="136" y="176" fill="#FCD34D" font-size="26" font-family="Consolas, 'Courier New', monospace">Hot Flow release  •  validation-heavy</text>
+  <text x="136" y="222" fill="#CBD5E1" font-size="22" font-family="Consolas, 'Courier New', monospace">You bottled ~148 tok and spent 4 charge.</text>
+  <text x="136" y="260" fill="#CBD5E1" font-size="22" font-family="Consolas, 'Courier New', monospace">XP +18  •  Focus +4  •  Clues +2  •  Combo +3</text>
+
+  <rect x="136" y="304" width="430" height="92" rx="18" fill="#111827" stroke="#22C55E" stroke-width="2"/>
+  <text x="170" y="344" fill="#DCFCE7" font-size="24" font-family="Consolas, 'Courier New', monospace">Tiny Chest opened</text>
+  <text x="170" y="378" fill="#86EFAC" font-size="20" font-family="Consolas, 'Courier New', monospace">Loot: Debug Ribbon</text>
+
+  <rect x="622" y="304" width="442" height="92" rx="18" fill="#111827" stroke="#334155" stroke-width="2"/>
+  <text x="654" y="344" fill="#E2E8F0" font-size="24" font-family="Consolas, 'Courier New', monospace">Legacy Golem paid out</text>
+  <text x="654" y="378" fill="#94A3B8" font-size="20" font-family="Consolas, 'Courier New', monospace">That run had real heat in it.</text>
+</svg>
