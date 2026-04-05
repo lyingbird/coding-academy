@@ -3,7 +3,7 @@ import {
   performBurst,
   previewBurst,
   renderBurstResult
-} from "./chunk-YLDEP747.js";
+} from "./chunk-7YEMBPM5.js";
 
 // src/academy-check-in.ts
 async function main() {

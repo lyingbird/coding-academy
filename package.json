@@ -12,6 +12,7 @@
     "status": "pnpm --filter @academy/cli status",
     "panel": "pnpm --filter @academy/cli panel",
     "watch": "pnpm --filter @academy/cli watch",
+    "sidecar": "pnpm --filter @academy/cli sidecar",
     "health": "pnpm --filter @academy/cli run doctor",
     "strategy": "pnpm --filter @academy/cli strategy",
     "burst": "pnpm --filter @academy/cli burst",

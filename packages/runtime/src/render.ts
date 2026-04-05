@@ -427,3 +427,129 @@ export function renderLobby(state: PersistedState): string {
   lines.push(...renderLatestCheckIn(state.recentBursts));
   return lines.join("\n");
 }
+
+const SIDECAR_WIDTH = 34;
+
+function sidecarPad(input: string, width = SIDECAR_WIDTH - 4): string {
+  if (input.length >= width) {
+    if (width <= 3) {
+      return input.slice(0, width);
+    }
+    return `${input.slice(0, width - 3)}...`;
+  }
+  return input + " ".repeat(width - input.length);
+}
+
+function sidecarBorder(title?: string): string {
+  if (!title) {
+    return `+${"-".repeat(SIDECAR_WIDTH - 2)}+`;
+  }
+  const text = ` ${title} `;
+  const remaining = Math.max(0, SIDECAR_WIDTH - 2 - text.length);
+  return `+${text}${"-".repeat(remaining)}+`;
+}
+
+function sidecarRow(content = ""): string {
+  return `| ${sidecarPad(content)} |`;
+}
+
+function worldLabel(state: PersistedState): string {
+  const totalWins = state.profile.totalVictories;
+  const zone = Math.floor(totalWins / 5) + 1;
+  const room = (totalWins % 5) + 1;
+  return `World ${zone}-${room}`;
+}
+
+function compactRecentLine(state: PersistedState): string {
+  const latest = state.activityLog.at(-1);
+  if (!latest) {
+    return "quiet march";
+  }
+  switch (latest.type) {
+    case "enemy_spotted":
+    case "elite_encounter":
+      return `spotted ${latest.enemyName ?? "a foe"}`;
+    case "attack":
+    case "hit_landed":
+      return `pressing ${latest.enemyName ?? "the enemy"}`;
+    case "damage_taken":
+      return `took a hit from ${latest.enemyName ?? "a foe"}`;
+    case "victory":
+      return `cleared ${latest.enemyName ?? "the room"}`;
+    case "loot_collected":
+      return latest.chestItem ? `loot ${latest.chestItem}` : "bag got heavier";
+    default:
+      return summarizeEvent(latest);
+  }
+}
+
+function compactEnemyLabel(state: PersistedState): string {
+  if (state.currentSession) {
+    return state.currentSession.enemyName;
+  }
+  if (state.burstBank.lastEnemyName) {
+    return state.burstBank.lastEnemyName;
+  }
+  return "No foe yet";
+}
+
+function compactHeroGlyph(profile: HeroProfile): string {
+  switch (profile.state) {
+    case "Scout":
+      return "^_^>";
+    case "Battle":
+      return "o_o/";
+    case "Cast":
+      return "*_*";
+    case "Hit":
+      return "x_x";
+    case "Victory":
+      return "\\o/";
+    case "Rest":
+      return "-_-";
+    case "LevelUp":
+      return "^o^";
+    default:
+      return "^_^";
+  }
+}
+
+export function renderSidecarPanel(state: PersistedState): string {
+  const lines: string[] = [];
+  const latestRecap = state.recentBursts[0];
+  lines.push(sidecarBorder("Coding Academy"));
+  lines.push(sidecarRow(`${state.profile.name} Lv.${state.profile.level} ${state.profile.dominantProfession}`));
+  lines.push(sidecarRow(`${worldLabel(state)} | ${state.profile.strategy} | x${state.profile.streak}`));
+  lines.push(sidecarRow());
+  lines.push(sidecarRow(`${compactHeroGlyph(state.profile)}  vs  ${compactEnemyLabel(state)}`));
+  lines.push(
+    sidecarRow(
+      `HP ${state.profile.hp}/${state.profile.maxHp}  Charge ${state.profile.charge}  Combo ${state.profile.combo}`,
+    ),
+  );
+  lines.push(sidecarRow(`now: ${compactRecentLine(state)}`));
+  lines.push(sidecarRow());
+  lines.push(
+    sidecarRow(
+      latestRecap
+        ? `check-in: ${latestRecap.title}`
+        : "check-in: bottling your effort",
+    ),
+  );
+  lines.push(
+    sidecarRow(
+      latestRecap
+        ? `${latestRecap.grade} | ~${latestRecap.estimatedTokens} tok`
+        : `cache ~${state.burstBank.estimatedTokens} tok`,
+    ),
+  );
+  lines.push(
+    sidecarRow(
+      state.profile.lastChestItem
+        ? `loot: ${state.profile.lastChestItem}`
+        : "loot: bag still empty",
+    ),
+  );
+  lines.push(sidecarBorder());
+  return lines.join("\n");
+}

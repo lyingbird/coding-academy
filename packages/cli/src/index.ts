@@ -9,7 +9,7 @@ import { mapOpenAiCliInputToRawEvents } from "@academy/runtime";
 import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
 import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
 import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
-import { renderLobby, renderPersistedPanel, renderUpdatePanel } from "./renderer.js";
+import { renderLobby, renderPersistedPanel, renderSidecarPanel, renderUpdatePanel } from "./renderer.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -186,6 +186,22 @@ async function runWatch() {
       console.clear();
       console.log(panel);
       console.log(`\nWatching ${store.path}`);
+      lastRendered = panel;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
+async function runSidecar() {
+  const store = new FileStore();
+  let lastRendered = "";
+
+  while (true) {
+    const persisted = await store.load();
+    const panel = renderSidecarPanel(persisted);
+    if (panel !== lastRendered) {
+      console.clear();
+      console.log(panel);
       lastRendered = panel;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -814,6 +830,9 @@ async function main() {
       return;
     case "watch":
       await runWatch();
+      return;
+    case "sidecar":
+      await runSidecar();
       return;
     case "strategy":
       await runStrategy();

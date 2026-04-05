@@ -1,1 +1,1 @@
-export { renderBurstResult, renderLobby, renderPersistedPanel, renderUpdatePanel } from "@academy/runtime";
+export { renderBurstResult, renderLobby, renderPersistedPanel, renderSidecarPanel, renderUpdatePanel } from "@academy/runtime";
