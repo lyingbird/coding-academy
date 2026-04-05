@@ -55,6 +55,28 @@ function wrapWords(text: string, width: number): string[] {
 function shellMoodText(state: PersistedState): string {
   const { profile, currentSession, recentBursts } = state;
   const recent = recentBursts[0];
+  const latest = state.activityLog.at(-1);
+
+  if (latest) {
+    switch (latest.type) {
+      case "enemy_spotted":
+      case "elite_encounter":
+        return `${latest.enemyName ?? "Something"} showed itself. I am on it.`;
+      case "attack":
+      case "hit_landed":
+        return `${latest.enemyName ?? "That thing"} is giving ground. Keep me in rhythm.`;
+      case "damage_taken":
+        return `${latest.enemyName ?? "It"} clipped me. Still standing.`;
+      case "victory":
+        return `${latest.enemyName ?? "The room"} is clear. That one felt clean.`;
+      case "loot_collected":
+        return latest.chestItem ? `Tiny prize: ${latest.chestItem}. Worth the detour.` : "Bag got heavier. I approve.";
+      case "rest":
+        return "Tiny breather. I am still tracking the route for you.";
+      default:
+        break;
+    }
+  }
 
   if (currentSession?.state === "Battle" || currentSession?.state === "Cast") {
     if (profile.strategy === "Rush") {
@@ -113,25 +135,28 @@ function shellNowLine(state: PersistedState): string {
   }
 }
 
-function spriteForState(state: CompanionState): string[] {
+function spriteFrame(state: CompanionState, tick: number): string[] {
+  const blink = tick % 6 === 0;
+  const bob = tick % 2 === 0;
+
   switch (state) {
     case "Scout":
-      return ["  /\\_/\\\\ ", " ( o.o?)", "  > ^ < "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.-?)" : " ( o.o?)", bob ? "  > ^ < " : "  > v < "];
     case "Battle":
-      return ["  /\\_/\\\\ ", " ( >o< )", "  / ^ \\\\ "];
+      return ["  /\\_/\\\\ ", " ( >o< )", bob ? "  / ^ \\\\ " : "  / ! \\\\ "];
     case "Cast":
-      return ["  /\\_/\\\\ ", " ( 0.0 )", "  / * \\\\ "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( 0.0 )", bob ? "  / * \\\\ " : "  / + \\\\ "];
     case "Hit":
       return ["  /\\_/\\\\ ", " ( x.x )", "  / ~ \\\\ "];
     case "Victory":
-      return ["  /\\_/\\\\ ", " ( ^o^ )", "  \\_^_/ "];
+      return ["  /\\_/\\\\ ", " ( ^o^ )", bob ? "  \\_^_/ " : "  \\_+_/ "];
     case "Rest":
-      return ["  /\\_/\\\\ ", " ( -.- )", "  zZ zZ "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( u.u )", bob ? "  zZ zZ " : "  z zZ "];
     case "LevelUp":
-      return ["  /\\_/\\\\ ", " ( *o* )", "  \\_^_/ "];
+      return ["  /\\_/\\\\ ", " ( *o* )", bob ? "  \\_^_/ " : "  \\_#_/ "];
     case "Idle":
     default:
-      return ["  /\\_/\\\\ ", " ( o.o )", "  > ^ < "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( o.o )", bob ? "  > ^ < " : "  > - < "];
   }
 }
 
@@ -145,10 +170,7 @@ function row(content: string, width: number): string {
 
 function bubble(text: string): string[] {
   const lines = wrapWords(text, BUBBLE_WIDTH);
-  const width = Math.max(
-    BUBBLE_WIDTH,
-    ...lines.map((line) => line.length),
-  ) + 4;
+  const width = Math.max(BUBBLE_WIDTH, ...lines.map((line) => line.length)) + 4;
 
   return [
     `  .${"-".repeat(width - 2)}.`,
@@ -158,22 +180,24 @@ function bubble(text: string): string[] {
   ];
 }
 
-function renderFull(state: PersistedState): string {
+function renderFull(state: PersistedState, tick: number): string {
   const lines: string[] = [];
-  const sprite = spriteForState(state.profile.state);
+  const sprite = spriteFrame(state.profile.state, tick);
   const speech = bubble(shellMoodText(state));
   const recap = state.recentBursts[0];
 
   lines.push(...speech);
-  lines.push(...sprite.map((line, index) => {
-    const right =
-      index === 0
-        ? `${state.profile.name}`
-        : index === 1
-          ? `Lv.${state.profile.level} ${state.profile.dominantProfession}`
-          : `${worldLabel(state)} • ${state.profile.strategy}`;
-    return `${line.padEnd(12)}   ${right}`;
-  }));
+  lines.push(
+    ...sprite.map((line, index) => {
+      const right =
+        index === 0
+          ? `${state.profile.name}`
+          : index === 1
+            ? `Lv.${state.profile.level} ${state.profile.dominantProfession}`
+            : `${worldLabel(state)} - ${state.profile.strategy}`;
+      return `${line.padEnd(12)}   ${right}`;
+    }),
+  );
   lines.push("");
   lines.push(border(FULL_WIDTH));
   lines.push(row(`foe: ${compact(lastEnemy(state), FULL_WIDTH - 9)}`, FULL_WIDTH));
@@ -190,7 +214,7 @@ function renderFull(state: PersistedState): string {
   lines.push(
     row(
       recap
-        ? compact(`burst: ${recap.grade} • ~${recap.estimatedTokens} tok`, FULL_WIDTH - 4)
+        ? compact(`burst: ${recap.grade} - ~${recap.estimatedTokens} tok`, FULL_WIDTH - 4)
         : compact(`burst: cache ~${state.burstBank.estimatedTokens} tok`, FULL_WIDTH - 4),
       FULL_WIDTH,
     ),
@@ -208,7 +232,7 @@ function renderFull(state: PersistedState): string {
   return lines.join("\n");
 }
 
-function renderNarrow(state: PersistedState): string {
+function renderNarrow(state: PersistedState, tick: number): string {
   const glyph =
     state.profile.state === "Victory"
       ? "(^o^)"
@@ -216,14 +240,21 @@ function renderNarrow(state: PersistedState): string {
         ? "(x.x)"
         : state.profile.state === "Rest"
           ? "(-.-)"
-          : "(o.o)";
+          : tick % 6 === 0
+            ? "(-.-)"
+            : "(o.o)";
   const summary = compact(shellNowLine(state), 18);
   const enemy = compact(lastEnemy(state), 16);
   return `${glyph} ${state.profile.name} Lv.${state.profile.level} | ${summary} | ${enemy}`;
 }
 
-export function renderBuddyShell(state: PersistedState, mode: ShellMode = "auto", columns?: number): string {
+export function renderBuddyShell(
+  state: PersistedState,
+  mode: ShellMode = "auto",
+  columns?: number,
+  tick = 0,
+): string {
   const resolvedColumns = columns ?? process.stdout.columns ?? 80;
   const resolvedMode = mode === "auto" ? (resolvedColumns < 72 ? "narrow" : "full") : mode;
-  return resolvedMode === "narrow" ? renderNarrow(state) : renderFull(state);
+  return resolvedMode === "narrow" ? renderNarrow(state, tick) : renderFull(state, tick);
 }

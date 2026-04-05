@@ -17,7 +17,8 @@ function resolveMode(): "auto" | "narrow" | "full" {
 async function loadPanel(): Promise<string> {
   const store = new FileStore(resolveStateFilePath({ workspace: resolveWorkspace() }));
   const state = await store.load();
-  return renderBuddyShell(state, resolveMode());
+  const tick = Math.floor(Date.now() / 700);
+  return renderBuddyShell(state, resolveMode(), undefined, tick);
 }
 
 async function runSnapshot() {

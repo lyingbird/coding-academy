@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
+import { clearSidecarManifest, isPidAlive, readSidecarManifest } from "../../sidecar-shell/src/manifest.js";
 
 function commandExists(command: string): boolean {
   const checker = process.platform === "win32" ? "where" : "which";
@@ -89,6 +90,17 @@ function launchLinux(scriptPath: string) {
 }
 
 async function main() {
+  const workspace = process.cwd();
+  const manifest = await readSidecarManifest();
+  if (manifest) {
+    if (!isPidAlive(manifest.pid)) {
+      await clearSidecarManifest();
+    } else if (manifest.workspace === workspace) {
+      process.stdout.write("Sidecar already active for this workspace.\n");
+      return;
+    }
+  }
+
   const currentFile = fileURLToPath(import.meta.url);
   const binDir = dirname(currentFile);
   const sidecarScript = `${binDir}${process.platform === "win32" ? "\\" : "/"}academy-sidecar.js`;

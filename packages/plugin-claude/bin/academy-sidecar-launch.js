@@ -1,3 +1,9 @@
+import {
+  clearSidecarManifest,
+  isPidAlive,
+  readSidecarManifest
+} from "./chunk-CJQGVFJE.js";
+
 // src/academy-sidecar-launch.ts
 import { existsSync } from "fs";
 import { dirname } from "path";
@@ -73,6 +79,16 @@ function launchLinux(scriptPath) {
   throw new Error("Could not find a supported terminal launcher on this Linux machine.");
 }
 async function main() {
+  const workspace = process.cwd();
+  const manifest = await readSidecarManifest();
+  if (manifest) {
+    if (!isPidAlive(manifest.pid)) {
+      await clearSidecarManifest();
+    } else if (manifest.workspace === workspace) {
+      process.stdout.write("Sidecar already active for this workspace.\n");
+      return;
+    }
+  }
   const currentFile = fileURLToPath(import.meta.url);
   const binDir = dirname(currentFile);
   const sidecarScript = `${binDir}${process.platform === "win32" ? "\\" : "/"}academy-sidecar.js`;

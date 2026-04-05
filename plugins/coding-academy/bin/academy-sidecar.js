@@ -1,4 +1,8 @@
 import {
+  clearSidecarManifest,
+  writeSidecarManifest
+} from "./chunk-CJQGVFJE.js";
+import {
   FileStore,
   resolveStateFilePath
 } from "./chunk-S6WBFUWA.js";
@@ -51,6 +55,27 @@ function wrapWords(text, width) {
 function shellMoodText(state) {
   const { profile, currentSession, recentBursts } = state;
   const recent = recentBursts[0];
+  const latest = state.activityLog.at(-1);
+  if (latest) {
+    switch (latest.type) {
+      case "enemy_spotted":
+      case "elite_encounter":
+        return `${latest.enemyName ?? "Something"} showed itself. I am on it.`;
+      case "attack":
+      case "hit_landed":
+        return `${latest.enemyName ?? "That thing"} is giving ground. Keep me in rhythm.`;
+      case "damage_taken":
+        return `${latest.enemyName ?? "It"} clipped me. Still standing.`;
+      case "victory":
+        return `${latest.enemyName ?? "The room"} is clear. That one felt clean.`;
+      case "loot_collected":
+        return latest.chestItem ? `Tiny prize: ${latest.chestItem}. Worth the detour.` : "Bag got heavier. I approve.";
+      case "rest":
+        return "Tiny breather. I am still tracking the route for you.";
+      default:
+        break;
+    }
+  }
   if (currentSession?.state === "Battle" || currentSession?.state === "Cast") {
     if (profile.strategy === "Rush") {
       return `${lastEnemy(state)} is wobbling. One more clean swing.`;
@@ -101,25 +126,27 @@ function shellNowLine(state) {
       return latest.note ? compact(latest.note, 24) : latest.type.replaceAll("_", " ");
   }
 }
-function spriteForState(state) {
+function spriteFrame(state, tick) {
+  const blink = tick % 6 === 0;
+  const bob = tick % 2 === 0;
   switch (state) {
     case "Scout":
-      return ["  /\\_/\\\\ ", " ( o.o?)", "  > ^ < "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.-?)" : " ( o.o?)", bob ? "  > ^ < " : "  > v < "];
     case "Battle":
-      return ["  /\\_/\\\\ ", " ( >o< )", "  / ^ \\\\ "];
+      return ["  /\\_/\\\\ ", " ( >o< )", bob ? "  / ^ \\\\ " : "  / ! \\\\ "];
     case "Cast":
-      return ["  /\\_/\\\\ ", " ( 0.0 )", "  / * \\\\ "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( 0.0 )", bob ? "  / * \\\\ " : "  / + \\\\ "];
     case "Hit":
       return ["  /\\_/\\\\ ", " ( x.x )", "  / ~ \\\\ "];
     case "Victory":
-      return ["  /\\_/\\\\ ", " ( ^o^ )", "  \\_^_/ "];
+      return ["  /\\_/\\\\ ", " ( ^o^ )", bob ? "  \\_^_/ " : "  \\_+_/ "];
     case "Rest":
-      return ["  /\\_/\\\\ ", " ( -.- )", "  zZ zZ "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( u.u )", bob ? "  zZ zZ " : "  z zZ "];
     case "LevelUp":
-      return ["  /\\_/\\\\ ", " ( *o* )", "  \\_^_/ "];
+      return ["  /\\_/\\\\ ", " ( *o* )", bob ? "  \\_^_/ " : "  \\_#_/ "];
     case "Idle":
     default:
-      return ["  /\\_/\\\\ ", " ( o.o )", "  > ^ < "];
+      return ["  /\\_/\\\\ ", blink ? " ( -.- )" : " ( o.o )", bob ? "  > ^ < " : "  > - < "];
   }
 }
 function border(width, left = "+", right = "+", fill = "-") {
@@ -130,10 +157,7 @@ function row(content, width) {
 }
 function bubble(text) {
   const lines = wrapWords(text, BUBBLE_WIDTH);
-  const width = Math.max(
-    BUBBLE_WIDTH,
-    ...lines.map((line) => line.length)
-  ) + 4;
+  const width = Math.max(BUBBLE_WIDTH, ...lines.map((line) => line.length)) + 4;
   return [
     `  .${"-".repeat(width - 2)}.`,
     ...lines.map((line) => ` / ${line.padEnd(width - 4)} \\`),
@@ -141,16 +165,18 @@ function bubble(text) {
     "         \\"
   ];
 }
-function renderFull(state) {
+function renderFull(state, tick) {
   const lines = [];
-  const sprite = spriteForState(state.profile.state);
+  const sprite = spriteFrame(state.profile.state, tick);
   const speech = bubble(shellMoodText(state));
   const recap = state.recentBursts[0];
   lines.push(...speech);
-  lines.push(...sprite.map((line, index) => {
-    const right = index === 0 ? `${state.profile.name}` : index === 1 ? `Lv.${state.profile.level} ${state.profile.dominantProfession}` : `${worldLabel(state)} \u2022 ${state.profile.strategy}`;
-    return `${line.padEnd(12)}   ${right}`;
-  }));
+  lines.push(
+    ...sprite.map((line, index) => {
+      const right = index === 0 ? `${state.profile.name}` : index === 1 ? `Lv.${state.profile.level} ${state.profile.dominantProfession}` : `${worldLabel(state)} - ${state.profile.strategy}`;
+      return `${line.padEnd(12)}   ${right}`;
+    })
+  );
   lines.push("");
   lines.push(border(FULL_WIDTH));
   lines.push(row(`foe: ${compact(lastEnemy(state), FULL_WIDTH - 9)}`, FULL_WIDTH));
@@ -166,7 +192,7 @@ function renderFull(state) {
   lines.push(row(`now: ${compact(shellNowLine(state), FULL_WIDTH - 9)}`, FULL_WIDTH));
   lines.push(
     row(
-      recap ? compact(`burst: ${recap.grade} \u2022 ~${recap.estimatedTokens} tok`, FULL_WIDTH - 4) : compact(`burst: cache ~${state.burstBank.estimatedTokens} tok`, FULL_WIDTH - 4),
+      recap ? compact(`burst: ${recap.grade} - ~${recap.estimatedTokens} tok`, FULL_WIDTH - 4) : compact(`burst: cache ~${state.burstBank.estimatedTokens} tok`, FULL_WIDTH - 4),
       FULL_WIDTH
     )
   );
@@ -182,25 +208,48 @@ function renderFull(state) {
   lines.push(border(FULL_WIDTH));
   return lines.join("\n");
 }
-function renderNarrow(state) {
-  const glyph = state.profile.state === "Victory" ? "(^o^)" : state.profile.state === "Hit" ? "(x.x)" : state.profile.state === "Rest" ? "(-.-)" : "(o.o)";
+function renderNarrow(state, tick) {
+  const glyph = state.profile.state === "Victory" ? "(^o^)" : state.profile.state === "Hit" ? "(x.x)" : state.profile.state === "Rest" ? "(-.-)" : tick % 6 === 0 ? "(-.-)" : "(o.o)";
   const summary = compact(shellNowLine(state), 18);
   const enemy = compact(lastEnemy(state), 16);
   return `${glyph} ${state.profile.name} Lv.${state.profile.level} | ${summary} | ${enemy}`;
 }
-function renderBuddyShell(state, mode = "auto", columns) {
+function renderBuddyShell(state, mode = "auto", columns, tick = 0) {
   const resolvedColumns = columns ?? process.stdout.columns ?? 80;
   const resolvedMode = mode === "auto" ? resolvedColumns < 72 ? "narrow" : "full" : mode;
-  return resolvedMode === "narrow" ? renderNarrow(state) : renderFull(state);
+  return resolvedMode === "narrow" ? renderNarrow(state, tick) : renderFull(state, tick);
 }
 
 // src/academy-sidecar.ts
 async function main() {
-  const store = new FileStore(resolveStateFilePath({ workspace: process.env.ACADEMY_WORKSPACE ?? process.cwd() }));
+  const workspace = process.env.ACADEMY_WORKSPACE ?? process.cwd();
+  const store = new FileStore(resolveStateFilePath({ workspace }));
   let lastRendered = "";
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    await clearSidecarManifest(workspace);
+  };
+  const shutdown = async (code = 0) => {
+    await cleanup();
+    process.exit(code);
+  };
+  await writeSidecarManifest(workspace);
+  process.on("SIGINT", () => void shutdown(0));
+  process.on("SIGTERM", () => void shutdown(0));
+  process.on("SIGHUP", () => void shutdown(0));
+  process.on("beforeExit", () => void cleanup());
+  process.stdout.on("error", (error) => {
+    if ("code" in error && error.code === "EPIPE") {
+      void shutdown(0);
+    }
+  });
   while (true) {
     const state = await store.load();
-    const panel = renderBuddyShell(state, "auto");
+    const panel = renderBuddyShell(state, "auto", void 0, Math.floor(Date.now() / 700));
     if (panel !== lastRendered) {
       console.clear();
       process.stdout.write(`${panel}
