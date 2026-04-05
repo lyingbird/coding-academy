@@ -12,6 +12,16 @@ function Require-Command {
   }
 }
 
+function Test-ClaudeRunning {
+  $candidates = @("claude", "Claude")
+  foreach ($name in $candidates) {
+    if (Get-Process -Name $name -ErrorAction SilentlyContinue) {
+      return $true
+    }
+  }
+  return $false
+}
+
 Write-Host ""
 Write-Host "== Coding Academy installer =="
 Write-Host ""
@@ -38,8 +48,15 @@ claude plugin install $pluginName | Out-Host
 
 Write-Host ""
 Write-Host "Coding Academy is ready."
-Write-Host "Next:"
-Write-Host "  1. Restart Claude Code"
-Write-Host "  2. Enter /coding-academy"
-Write-Host "  3. Keep coding normally"
+if (Test-ClaudeRunning) {
+  Write-Host "Claude Code appears to be running right now."
+  Write-Host "Please fully close all Claude windows first so the new commands refresh cleanly."
+  Write-Host ""
+}
+Write-Host "First run:"
+Write-Host "  1. Open any terminal"
+Write-Host "  2. Run: claude"
+Write-Host "  3. Enter: /coding-academy"
+Write-Host "  4. Keep coding normally while the buddy pushes maps on the side"
+Write-Host "  5. Cash out with: /coding-academy-check-in"
 Write-Host ""

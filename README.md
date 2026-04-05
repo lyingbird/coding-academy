@@ -230,6 +230,8 @@ Then inside Claude Code:
 /coding-academy
 ```
 
+If Claude Code was already open during install, fully close every Claude window once before trying the slash command.
+
 From a local clone:
 
 ```powershell

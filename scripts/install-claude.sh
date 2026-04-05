@@ -12,6 +12,14 @@ require_command() {
   fi
 }
 
+claude_running() {
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -x claude >/dev/null 2>&1 && return 0
+    pgrep -x Claude >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
 echo
 echo "== Coding Academy installer =="
 echo
@@ -36,8 +44,15 @@ claude plugin install "$plugin_name"
 
 echo
 echo "Coding Academy is ready."
-echo "Next:"
-echo "  1. Restart Claude Code"
-echo "  2. Enter /coding-academy"
-echo "  3. Keep coding normally"
+if claude_running; then
+  echo "Claude Code appears to be running right now."
+  echo "Please fully close all Claude windows first so the new commands refresh cleanly."
+  echo
+fi
+echo "First run:"
+echo "  1. Open any terminal"
+echo "  2. Run: claude"
+echo "  3. Enter: /coding-academy"
+echo "  4. Keep coding normally while the buddy pushes maps on the side"
+echo "  5. Cash out with: /coding-academy-check-in"
 echo
