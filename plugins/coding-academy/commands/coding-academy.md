@@ -12,7 +12,7 @@ Run these commands first:
 
 Then respond briefly in plain language:
 
-- confirm that the sidecar was opened
+- confirm that the sidecar was opened, or that the existing one was reused
 - that it now uses the compact buddy shell beside the terminal
 - what the hero is doing right now
 - what the latest check-in recap says
