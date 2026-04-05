@@ -1,8 +1,23 @@
 # Coding Academy
 
-Coding Academy is a lightweight multi-CLI companion platform inspired by Stone Story RPG, Battle! Brave Academy, and bongocat-style desktop companions.
+Coding Academy is a sidecar companion platform for AI coding CLIs.
 
-It turns real Claude Code work into a tiny auto-battling adventure:
+The product target is simple:
+
+- keep a cute buddy visible beside the terminal
+- do not interrupt normal vibecoding
+- let real coding activity push maps, fights, loot, and growth in the background
+
+It is inspired by Stone Story RPG, Battle! Brave Academy, bongocat-style companions, and the always-visible `/buddy` interaction pattern.
+
+The current repo already has the shared runtime and host communication backbone.
+The next product step is to turn that backbone into a true sidecar-first experience.
+
+See the current replan here:
+
+- [Replan](D:\工作\CLI_GAMEPLAY\kb\01_REPLAN_SIDECAR_PLATFORM.md)
+
+The runtime turns real AI coding work into a tiny auto-battling adventure:
 
 - reads and searches become scouting
 - edits and patches become attacks
@@ -11,11 +26,31 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - combos, clues, tiny chests, and monster journal entries keep the feedback loop hot
 - vibecoding downtime becomes a low-pressure charge phase instead of dead air
 
+## Product Direction
+
+Coding Academy is no longer framed as a slash-command page or a repo-local `pnpm` toy.
+
+It now has three product layers:
+
+- `host integrations`
+  - Claude Code, Codex CLI, Gemini CLI, GPT-style shells, Qwen, domestic wrappers
+- `academy hub`
+  - one local event bus and shared state model
+- `sidecar shell`
+  - the actual player-facing buddy
+
+The main player fantasy is:
+
+- code normally
+- keep the buddy at the side
+- watch it scout, fight, and push the run quietly
+- trigger a check-in only when you want a payoff
+
 ## Core Communication Model
 
 Coding Academy now treats communication with AI CLIs as a first-class product problem.
 
-The runtime is split into three layers:
+The communication stack is split into three layers:
 
 - `host`
   - Claude Code, Codex CLI, Gemini CLI, OpenAI-compatible shells, Qwen, or domestic wrappers
@@ -56,7 +91,9 @@ If the hub is offline, wrappers and hooks fall back to local state writes. If th
 - `packages/runtime`
   - gameplay engine, event normalization, persistence
 - `packages/cli`
-  - local demo CLI for testing the engine
+  - host wrappers, health checks, and developer utilities
+- `packages/sidecar-shell`
+  - the new dedicated front-end shell for the always-visible buddy
 - `packages/plugin-claude`
   - Claude Code plugin source
 - `packages/runtime/src/adapters`
@@ -79,6 +116,7 @@ If the hub is offline, wrappers and hooks fall back to local state writes. If th
 - `pnpm panel`
 - `pnpm watch`
 - `pnpm health`
+- `pnpm sidecar:shell`
 - `pnpm check-in`
 - `pnpm codex`
 - `pnpm gemini`
@@ -103,17 +141,9 @@ If the hub is offline, wrappers and hooks fall back to local state writes. If th
 - `pnpm plugin:bundle`
 - `pnpm plugin:validate`
 
-## Platform Direction
+## Current Platform Coverage
 
-Coding Academy is no longer framed as only a Claude Code plugin.
-
-The product shape is:
-
-- one shared gameplay runtime
-- many CLI adapters
-- platform-specific wrappers on top
-
-Current adapter layer already includes starter mappers for:
+The current adapter layer already includes starter mappers for:
 
 - Claude Code
 - Codex CLI
@@ -178,11 +208,11 @@ From GitHub:
 claude plugin marketplace add lyingbird/coding-academy --scope user --sparse .claude-plugin plugins && claude plugin install coding-academy
 ```
 
-## Claude Player Flow
+## Claude Integration
 
-The real player flow is not `pnpm`, and it is not tied to this repo folder after install.
+Claude is now treated as one host integration, not the whole product.
 
-It is:
+The Claude flow is:
 
 1. install the plugin once in a system terminal
 2. open `claude` from any terminal
@@ -206,11 +236,14 @@ The older lower-level status command still exists:
 /academy:status
 ```
 
-`pnpm` commands below are now contributor and local-dev paths, not the primary player path.
+Slash commands are helper controls.
+They are not the final product shape.
+
+The long-term player-facing target is still a persistent sidecar, not a full chat-page command.
 
 ## Local Contributor Flow
 
-Player-first entry point:
+Developer entry point:
 
 ```bash
 pnpm start

@@ -13,6 +13,7 @@
     "panel": "pnpm --filter @academy/cli panel",
     "watch": "pnpm --filter @academy/cli watch",
     "sidecar": "pnpm --filter @academy/cli sidecar",
+    "sidecar:shell": "pnpm --filter @academy/sidecar-shell start",
     "health": "pnpm --filter @academy/cli run doctor",
     "strategy": "pnpm --filter @academy/cli strategy",
     "burst": "pnpm --filter @academy/cli burst",
