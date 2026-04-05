@@ -1,6 +1,6 @@
 import {
   dispatchBridgeEnvelope
-} from "./chunk-HKLIPPRN.js";
+} from "./chunk-S6WBFUWA.js";
 
 // src/academy-hook.ts
 async function readStdinText() {

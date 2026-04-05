@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@academy/runtime": "workspace:*"
+    "@academy/runtime": "workspace:*",
+    "@academy/sidecar-shell": "workspace:*"
   }
 }

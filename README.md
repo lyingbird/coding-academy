@@ -52,6 +52,8 @@ The new `sidecar-shell` package is where the buddy-like front-end now lives:
 - narrow terminals collapse into a single compact line
 - future host integrations should launch or focus this shell instead of rendering full-page status text
 
+The Claude plugin sidecar is now being switched onto this same shell so the Claude experience and native shell experience stop drifting apart.
+
 ## Core Communication Model
 
 Coding Academy now treats communication with AI CLIs as a first-class product problem.

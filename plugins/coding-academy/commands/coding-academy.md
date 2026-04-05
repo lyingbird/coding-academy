@@ -13,6 +13,7 @@ Run these commands first:
 Then respond briefly in plain language:
 
 - confirm that the sidecar was opened
+- that it now uses the compact buddy shell beside the terminal
 - what the hero is doing right now
 - what the latest check-in recap says
 - remind them they can keep coding normally while the buddy pushes forward on the side

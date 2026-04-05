@@ -1,4 +1,5 @@
-import { FileStore, renderSidecarPanel, resolveStateFilePath } from "../../runtime/src/index.js";
+import { FileStore, resolveStateFilePath } from "../../runtime/src/index.js";
+import { renderBuddyShell } from "../../sidecar-shell/src/renderer.js";
 
 async function main() {
   const store = new FileStore(resolveStateFilePath({ workspace: process.env.ACADEMY_WORKSPACE ?? process.cwd() }));
@@ -6,7 +7,7 @@ async function main() {
 
   while (true) {
     const state = await store.load();
-    const panel = renderSidecarPanel(state);
+    const panel = renderBuddyShell(state, "auto");
     if (panel !== lastRendered) {
       console.clear();
       process.stdout.write(`${panel}\n`);
