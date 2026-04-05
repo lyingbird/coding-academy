@@ -46,6 +46,12 @@ The main player fantasy is:
 - watch it scout, fight, and push the run quietly
 - trigger a check-in only when you want a payoff
 
+The new `sidecar-shell` package is where the buddy-like front-end now lives:
+
+- wide terminals get a speech bubble and mascot card
+- narrow terminals collapse into a single compact line
+- future host integrations should launch or focus this shell instead of rendering full-page status text
+
 ## Core Communication Model
 
 Coding Academy now treats communication with AI CLIs as a first-class product problem.
@@ -117,6 +123,8 @@ If the hub is offline, wrappers and hooks fall back to local state writes. If th
 - `pnpm watch`
 - `pnpm health`
 - `pnpm sidecar:shell`
+- `pnpm --filter @academy/sidecar-shell snapshot:full`
+- `pnpm --filter @academy/sidecar-shell snapshot:narrow`
 - `pnpm check-in`
 - `pnpm codex`
 - `pnpm gemini`
