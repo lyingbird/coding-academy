@@ -1,4 +1,4 @@
-import { AcademyEngine, FileStore, mapClaudeHookInputToRawEvents } from "../../runtime/src/index.js";
+import { dispatchBridgeEnvelope } from "../../runtime/src/index.js";
 
 async function readStdinText(): Promise<string> {
   const chunks: string[] = [];
@@ -12,21 +12,14 @@ async function readStdinText(): Promise<string> {
 async function main() {
   const input = await readStdinText();
   const payload = JSON.parse(input);
-  const rawEvents = mapClaudeHookInputToRawEvents(payload);
-
-  if (rawEvents.length === 0) {
-    return;
-  }
-
-  const store = new FileStore();
-  const state = await store.load();
-  const engine = new AcademyEngine(state);
-
-  for (const rawEvent of rawEvents) {
-    engine.process(rawEvent);
-  }
-
-  await store.save(engine.snapshot);
+  await dispatchBridgeEnvelope({
+    adapter: "claude-code",
+    payload,
+    source: "claude-hook",
+    target: {
+      workspace: typeof payload.cwd === "string" ? payload.cwd : process.cwd(),
+    },
+  });
 }
 
 void main();

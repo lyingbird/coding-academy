@@ -2,12 +2,13 @@ import {
   FileStore,
   performBurst,
   previewBurst,
-  renderBurstResult
-} from "./chunk-7YEMBPM5.js";
+  renderBurstResult,
+  resolveStateFilePath
+} from "./chunk-HKLIPPRN.js";
 
 // src/academy-check-in.ts
 async function main() {
-  const store = new FileStore();
+  const store = new FileStore(resolveStateFilePath({ workspace: process.env.ACADEMY_WORKSPACE ?? process.cwd() }));
   const state = await store.load();
   const preview = previewBurst(state);
   const result = performBurst(state);

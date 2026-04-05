@@ -13,7 +13,7 @@ function commandExists(command: string): boolean {
 }
 
 function launchWindows(scriptPath: string) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
 
   if (commandExists("wt")) {
     const child = spawn(
@@ -35,7 +35,7 @@ function launchWindows(scriptPath: string) {
 }
 
 function launchMac(scriptPath: string) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
 
   if (process.env.TMUX && commandExists("tmux")) {
     const child = spawn("tmux", ["split-window", "-h", `node '${scriptPath}'`], {
@@ -62,7 +62,7 @@ function launchMac(scriptPath: string) {
 }
 
 function launchLinux(scriptPath: string) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
   const terminals = ["x-terminal-emulator", "gnome-terminal", "konsole"];
 
   for (const terminal of terminals) {

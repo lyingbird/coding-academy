@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { PersistedState } from "@academy/shared";
+import type { AcademyBridgeTarget, PersistedState } from "@academy/shared";
 import { createBurstBank, createBurstRecapHistory, createDefaultProfile, createSession } from "./engine.js";
 
-function findWorkspaceRoot(startDir: string): string {
+export function findWorkspaceRoot(startDir: string): string {
   let current = startDir;
   while (true) {
     if (existsSync(join(current, "pnpm-workspace.yaml")) || existsSync(join(current, ".git"))) {
@@ -18,7 +19,26 @@ function findWorkspaceRoot(startDir: string): string {
   }
 }
 
-function resolveStorageDir(): string {
+export function resolveAcademyHomeDir(): string {
+  return join(homedir(), ".coding-academy");
+}
+
+export function resolveStorageDir(target?: AcademyBridgeTarget): string {
+  if (target?.stateFile) {
+    return dirname(target.stateFile);
+  }
+  if (target?.storageDir) {
+    return target.storageDir;
+  }
+  if (process.env.ACADEMY_STATE_FILE) {
+    return dirname(process.env.ACADEMY_STATE_FILE);
+  }
+  if (process.env.ACADEMY_STORAGE_DIR) {
+    return process.env.ACADEMY_STORAGE_DIR;
+  }
+  if (target?.workspace) {
+    return join(findWorkspaceRoot(target.workspace), ".academy");
+  }
   const pluginData = process.env.CLAUDE_PLUGIN_DATA;
   if (pluginData) {
     return join(pluginData, "academy-state");
@@ -28,6 +48,16 @@ function resolveStorageDir(): string {
 
 const DEFAULT_STORAGE_DIR = resolveStorageDir();
 const DEFAULT_STATE_FILE = join(DEFAULT_STORAGE_DIR, "state.json");
+
+export function resolveStateFilePath(target?: AcademyBridgeTarget): string {
+  if (target?.stateFile) {
+    return target.stateFile;
+  }
+  if (process.env.ACADEMY_STATE_FILE) {
+    return process.env.ACADEMY_STATE_FILE;
+  }
+  return join(resolveStorageDir(target), "state.json");
+}
 
 export class FileStore {
   constructor(private readonly filePath = DEFAULT_STATE_FILE) {}

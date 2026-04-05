@@ -1,7 +1,7 @@
-import { FileStore, renderSidecarPanel } from "../../runtime/src/index.js";
+import { FileStore, renderSidecarPanel, resolveStateFilePath } from "../../runtime/src/index.js";
 
 async function main() {
-  const store = new FileStore();
+  const store = new FileStore(resolveStateFilePath({ workspace: process.env.ACADEMY_WORKSPACE ?? process.cwd() }));
   let lastRendered = "";
 
   while (true) {

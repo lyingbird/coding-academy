@@ -711,6 +711,7 @@ var AcademyEngine = class {
 // ../runtime/src/store.ts
 import { existsSync } from "fs";
 import { mkdir, open, readFile, rm, writeFile } from "fs/promises";
+import { homedir } from "os";
 import { dirname, join } from "path";
 function findWorkspaceRoot(startDir) {
   let current = startDir;
@@ -725,7 +726,25 @@ function findWorkspaceRoot(startDir) {
     current = parent;
   }
 }
-function resolveStorageDir() {
+function resolveAcademyHomeDir() {
+  return join(homedir(), ".coding-academy");
+}
+function resolveStorageDir(target) {
+  if (target?.stateFile) {
+    return dirname(target.stateFile);
+  }
+  if (target?.storageDir) {
+    return target.storageDir;
+  }
+  if (process.env.ACADEMY_STATE_FILE) {
+    return dirname(process.env.ACADEMY_STATE_FILE);
+  }
+  if (process.env.ACADEMY_STORAGE_DIR) {
+    return process.env.ACADEMY_STORAGE_DIR;
+  }
+  if (target?.workspace) {
+    return join(findWorkspaceRoot(target.workspace), ".academy");
+  }
   const pluginData = process.env.CLAUDE_PLUGIN_DATA;
   if (pluginData) {
     return join(pluginData, "academy-state");
@@ -734,6 +753,15 @@ function resolveStorageDir() {
 }
 var DEFAULT_STORAGE_DIR = resolveStorageDir();
 var DEFAULT_STATE_FILE = join(DEFAULT_STORAGE_DIR, "state.json");
+function resolveStateFilePath(target) {
+  if (target?.stateFile) {
+    return target.stateFile;
+  }
+  if (process.env.ACADEMY_STATE_FILE) {
+    return process.env.ACADEMY_STATE_FILE;
+  }
+  return join(resolveStorageDir(target), "state.json");
+}
 var FileStore = class {
   constructor(filePath = DEFAULT_STATE_FILE) {
     this.filePath = filePath;
@@ -836,198 +864,6 @@ var FileStore = class {
     return this.filePath;
   }
 };
-
-// ../runtime/src/adapters/claude.ts
-function nowIso2() {
-  return (/* @__PURE__ */ new Date()).toISOString();
-}
-function bashCommand(input) {
-  const command = input.tool_input?.command;
-  return typeof command === "string" ? command : "";
-}
-function toolName(input) {
-  return typeof input.tool_name === "string" ? input.tool_name : "";
-}
-function fileTarget(input) {
-  const candidateKeys = ["file_path", "target_file", "filePath", "path"];
-  for (const key of candidateKeys) {
-    const value = input.tool_input?.[key];
-    if (typeof value === "string" && value.length > 0) {
-      return value;
-    }
-  }
-  return void 0;
-}
-function looksLikeTestCommand(command) {
-  const normalized = command.toLowerCase();
-  return [
-    "test",
-    "vitest",
-    "jest",
-    "pytest",
-    "cargo test",
-    "go test",
-    "pnpm test",
-    "npm test",
-    "bun test",
-    "uv run pytest"
-  ].some((token) => normalized.includes(token));
-}
-function makeRawEvent(input, type, payload) {
-  if (!input.session_id) {
-    return null;
-  }
-  return {
-    type,
-    sessionId: input.session_id,
-    timestamp: nowIso2(),
-    payload
-  };
-}
-function mapClaudeHookInputToRawEvents(input) {
-  const eventName = input.hook_event_name;
-  if (!eventName) {
-    return [];
-  }
-  switch (eventName) {
-    case "SessionStart": {
-      const event = makeRawEvent(input, "session.started", {
-        cwd: input.cwd
-      });
-      return event ? [event] : [];
-    }
-    case "UserPromptSubmit": {
-      const event = makeRawEvent(input, "prompt.submitted", {
-        prompt: input.prompt
-      });
-      return event ? [event] : [];
-    }
-    case "PreToolUse": {
-      const currentTool = toolName(input);
-      switch (currentTool) {
-        case "Read": {
-          const event = makeRawEvent(input, "file.read", {
-            phase: "start",
-            target: fileTarget(input),
-            ...input.tool_input
-          });
-          return event ? [event] : [];
-        }
-        case "Grep":
-        case "Glob":
-        case "WebSearch":
-        case "WebFetch": {
-          const event = makeRawEvent(input, "search.performed", {
-            phase: "start",
-            toolName: currentTool,
-            ...input.tool_input
-          });
-          return event ? [event] : [];
-        }
-        case "Edit":
-        case "Write":
-        case "MultiEdit": {
-          const event = makeRawEvent(input, "file.edited", {
-            phase: "start",
-            toolName: currentTool,
-            target: fileTarget(input),
-            ...input.tool_input
-          });
-          return event ? [event] : [];
-        }
-        case "Bash": {
-          const command = bashCommand(input);
-          const event = makeRawEvent(input, "command.started", {
-            command,
-            majorCheck: looksLikeTestCommand(command)
-          });
-          return event ? [event] : [];
-        }
-        default:
-          return [];
-      }
-    }
-    case "PostToolUse": {
-      switch (toolName(input)) {
-        case "Read": {
-          const event = makeRawEvent(input, "file.read", {
-            phase: "finish",
-            target: fileTarget(input),
-            ...input.tool_input
-          });
-          return event ? [event] : [];
-        }
-        case "Grep":
-        case "Glob":
-        case "WebSearch":
-        case "WebFetch": {
-          const event = makeRawEvent(input, "search.performed", {
-            phase: "finish",
-            toolName: toolName(input),
-            ...input.tool_input
-          });
-          return event ? [event] : [];
-        }
-        case "Edit":
-        case "Write":
-        case "MultiEdit": {
-          const patchEvent = makeRawEvent(input, "patch.applied", {
-            toolName: toolName(input),
-            target: fileTarget(input),
-            ...input.tool_input,
-            ...input.tool_response
-          });
-          return patchEvent ? [patchEvent] : [];
-        }
-        case "Bash": {
-          const command = bashCommand(input);
-          const type = looksLikeTestCommand(command) ? "tests.passed" : "command.succeeded";
-          const event = makeRawEvent(input, type, {
-            command,
-            majorCheck: looksLikeTestCommand(command)
-          });
-          return event ? [event] : [];
-        }
-        default:
-          return [];
-      }
-    }
-    case "PostToolUseFailure": {
-      if (input.tool_name === "Bash") {
-        const command = bashCommand(input);
-        const type = looksLikeTestCommand(command) ? "tests.failed" : "command.failed";
-        const event = makeRawEvent(input, type, {
-          command,
-          majorCheck: looksLikeTestCommand(command)
-        });
-        return event ? [event] : [];
-      }
-      return [];
-    }
-    case "Stop": {
-      const events = [];
-      const summaryEvent = makeRawEvent(input, "summary.written", {
-        summary: input.last_assistant_message
-      });
-      if (summaryEvent) {
-        events.push(summaryEvent);
-      }
-      const completionEvent = makeRawEvent(input, "task.completed", {
-        summary: input.last_assistant_message
-      });
-      if (completionEvent) {
-        events.push(completionEvent);
-      }
-      const endEvent = makeRawEvent(input, "session.ended");
-      if (endEvent) {
-        events.push(endEvent);
-      }
-      return events;
-    }
-    default:
-      return [];
-  }
-}
 
 // ../runtime/src/render.ts
 var PANEL_WIDTH = 58;
@@ -1467,13 +1303,486 @@ function renderSidecarPanel(state) {
   return lines.join("\n");
 }
 
+// ../runtime/src/hub.ts
+import { createServer } from "http";
+import { randomBytes } from "crypto";
+import { existsSync as existsSync2 } from "fs";
+import { mkdir as mkdir2, readFile as readFile2, rm as rm2, writeFile as writeFile2 } from "fs/promises";
+import { dirname as dirname2, join as join2 } from "path";
+
+// ../runtime/src/adapters/claude.ts
+function nowIso2() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function bashCommand(input) {
+  const command = input.tool_input?.command;
+  return typeof command === "string" ? command : "";
+}
+function toolName(input) {
+  return typeof input.tool_name === "string" ? input.tool_name : "";
+}
+function fileTarget(input) {
+  const candidateKeys = ["file_path", "target_file", "filePath", "path"];
+  for (const key of candidateKeys) {
+    const value = input.tool_input?.[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+  return void 0;
+}
+function looksLikeTestCommand(command) {
+  const normalized = command.toLowerCase();
+  return [
+    "test",
+    "vitest",
+    "jest",
+    "pytest",
+    "cargo test",
+    "go test",
+    "pnpm test",
+    "npm test",
+    "bun test",
+    "uv run pytest"
+  ].some((token) => normalized.includes(token));
+}
+function makeRawEvent(input, type, payload) {
+  if (!input.session_id) {
+    return null;
+  }
+  return {
+    type,
+    sessionId: input.session_id,
+    timestamp: nowIso2(),
+    payload
+  };
+}
+function mapClaudeHookInputToRawEvents(input) {
+  const eventName = input.hook_event_name;
+  if (!eventName) {
+    return [];
+  }
+  switch (eventName) {
+    case "SessionStart": {
+      const event = makeRawEvent(input, "session.started", {
+        cwd: input.cwd
+      });
+      return event ? [event] : [];
+    }
+    case "UserPromptSubmit": {
+      const event = makeRawEvent(input, "prompt.submitted", {
+        prompt: input.prompt
+      });
+      return event ? [event] : [];
+    }
+    case "PreToolUse": {
+      const currentTool = toolName(input);
+      switch (currentTool) {
+        case "Read": {
+          const event = makeRawEvent(input, "file.read", {
+            phase: "start",
+            target: fileTarget(input),
+            ...input.tool_input
+          });
+          return event ? [event] : [];
+        }
+        case "Grep":
+        case "Glob":
+        case "WebSearch":
+        case "WebFetch": {
+          const event = makeRawEvent(input, "search.performed", {
+            phase: "start",
+            toolName: currentTool,
+            ...input.tool_input
+          });
+          return event ? [event] : [];
+        }
+        case "Edit":
+        case "Write":
+        case "MultiEdit": {
+          const event = makeRawEvent(input, "file.edited", {
+            phase: "start",
+            toolName: currentTool,
+            target: fileTarget(input),
+            ...input.tool_input
+          });
+          return event ? [event] : [];
+        }
+        case "Bash": {
+          const command = bashCommand(input);
+          const event = makeRawEvent(input, "command.started", {
+            command,
+            majorCheck: looksLikeTestCommand(command)
+          });
+          return event ? [event] : [];
+        }
+        default:
+          return [];
+      }
+    }
+    case "PostToolUse": {
+      switch (toolName(input)) {
+        case "Read": {
+          const event = makeRawEvent(input, "file.read", {
+            phase: "finish",
+            target: fileTarget(input),
+            ...input.tool_input
+          });
+          return event ? [event] : [];
+        }
+        case "Grep":
+        case "Glob":
+        case "WebSearch":
+        case "WebFetch": {
+          const event = makeRawEvent(input, "search.performed", {
+            phase: "finish",
+            toolName: toolName(input),
+            ...input.tool_input
+          });
+          return event ? [event] : [];
+        }
+        case "Edit":
+        case "Write":
+        case "MultiEdit": {
+          const patchEvent = makeRawEvent(input, "patch.applied", {
+            toolName: toolName(input),
+            target: fileTarget(input),
+            ...input.tool_input,
+            ...input.tool_response
+          });
+          return patchEvent ? [patchEvent] : [];
+        }
+        case "Bash": {
+          const command = bashCommand(input);
+          const type = looksLikeTestCommand(command) ? "tests.passed" : "command.succeeded";
+          const event = makeRawEvent(input, type, {
+            command,
+            majorCheck: looksLikeTestCommand(command)
+          });
+          return event ? [event] : [];
+        }
+        default:
+          return [];
+      }
+    }
+    case "PostToolUseFailure": {
+      if (input.tool_name === "Bash") {
+        const command = bashCommand(input);
+        const type = looksLikeTestCommand(command) ? "tests.failed" : "command.failed";
+        const event = makeRawEvent(input, type, {
+          command,
+          majorCheck: looksLikeTestCommand(command)
+        });
+        return event ? [event] : [];
+      }
+      return [];
+    }
+    case "Stop": {
+      const events = [];
+      const summaryEvent = makeRawEvent(input, "summary.written", {
+        summary: input.last_assistant_message
+      });
+      if (summaryEvent) {
+        events.push(summaryEvent);
+      }
+      const completionEvent = makeRawEvent(input, "task.completed", {
+        summary: input.last_assistant_message
+      });
+      if (completionEvent) {
+        events.push(completionEvent);
+      }
+      const endEvent = makeRawEvent(input, "session.ended");
+      if (endEvent) {
+        events.push(endEvent);
+      }
+      return events;
+    }
+    default:
+      return [];
+  }
+}
+
+// ../runtime/src/adapters/codex.ts
+function nowIso3() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function make(sessionId, type, payload) {
+  if (!sessionId) {
+    return [];
+  }
+  return [{ type, sessionId, timestamp: nowIso3(), payload }];
+}
+function mapCodexInputToRawEvents(input) {
+  switch (input.event) {
+    case "session_start":
+      return make(input.sessionId, "session.started", { cwd: input.cwd });
+    case "prompt":
+      return make(input.sessionId, "prompt.submitted", { prompt: input.prompt });
+    case "read":
+      return make(input.sessionId, "file.read", { target: input.file });
+    case "search":
+      return make(input.sessionId, "search.performed", { query: input.query });
+    case "edit":
+      return make(input.sessionId, "file.edited", { target: input.file });
+    case "patch":
+      return make(input.sessionId, "patch.applied", { target: input.file });
+    case "command_start":
+      return make(input.sessionId, "command.started", { command: input.command, majorCheck: input.majorCheck === true });
+    case "command_ok":
+      return make(input.sessionId, input.majorCheck === true ? "tests.passed" : "command.succeeded", {
+        command: input.command,
+        majorCheck: input.majorCheck === true
+      });
+    case "command_fail":
+      return make(input.sessionId, input.majorCheck === true ? "tests.failed" : "command.failed", {
+        command: input.command,
+        majorCheck: input.majorCheck === true
+      });
+    case "summary":
+      return make(input.sessionId, "summary.written", { summary: input.summary });
+    case "stop":
+      return make(input.sessionId, "session.ended");
+    default:
+      return [];
+  }
+}
+
+// ../runtime/src/adapters/gemini.ts
+function nowIso4() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function make2(sessionId, type, payload) {
+  if (!sessionId) {
+    return [];
+  }
+  return [{ type, sessionId, timestamp: nowIso4(), payload }];
+}
+function mapGeminiInputToRawEvents(input) {
+  switch (input.phase) {
+    case "start":
+      return make2(input.session_id, "session.started");
+    case "prompt":
+      return make2(input.session_id, "prompt.submitted", { prompt: input.prompt });
+    case "read":
+      return make2(input.session_id, "file.read", { target: input.target });
+    case "search":
+      return make2(input.session_id, "search.performed", { query: input.query });
+    case "edit":
+      return make2(input.session_id, "file.edited", { target: input.target });
+    case "patch":
+      return make2(input.session_id, "patch.applied", { target: input.target });
+    case "validate_ok":
+      return make2(input.session_id, "tests.passed", { command: input.command, majorCheck: true });
+    case "validate_fail":
+      return make2(input.session_id, "tests.failed", { command: input.command, majorCheck: true });
+    case "summary":
+      return make2(input.session_id, "summary.written", { summary: input.summary });
+    case "finish":
+      return make2(input.session_id, "session.ended");
+    default:
+      return [];
+  }
+}
+
+// ../runtime/src/adapters/generic.ts
+function mapGenericInputToRawEvents(input) {
+  return Array.isArray(input.events) ? input.events : [];
+}
+
+// ../runtime/src/adapters/openai.ts
+function nowIso5() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function make3(sessionId, type, payload) {
+  if (!sessionId) {
+    return [];
+  }
+  return [{ type, sessionId, timestamp: nowIso5(), payload }];
+}
+function mapOpenAiCliInputToRawEvents(input) {
+  switch (input.event) {
+    case "session_start":
+      return make3(input.session_id, "session.started");
+    case "prompt":
+      return make3(input.session_id, "prompt.submitted", { prompt: input.prompt });
+    case "read":
+      return make3(input.session_id, "file.read", { target: input.target });
+    case "search":
+      return make3(input.session_id, "search.performed", { query: input.query });
+    case "edit":
+      return make3(input.session_id, "file.edited", { target: input.target });
+    case "patch":
+      return make3(input.session_id, "patch.applied", { target: input.target });
+    case "check_ok":
+      return make3(input.session_id, input.majorCheck === true ? "tests.passed" : "command.succeeded", {
+        command: input.command,
+        majorCheck: input.majorCheck === true
+      });
+    case "check_fail":
+      return make3(input.session_id, input.majorCheck === true ? "tests.failed" : "command.failed", {
+        command: input.command,
+        majorCheck: input.majorCheck === true
+      });
+    case "summary":
+      return make3(input.session_id, "summary.written", { summary: input.summary });
+    case "finish":
+      return make3(input.session_id, "session.ended");
+    default:
+      return [];
+  }
+}
+
+// ../runtime/src/adapters/qwen.ts
+function nowIso6() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+function make4(sessionId, type, payload) {
+  if (!sessionId) {
+    return [];
+  }
+  return [{ type, sessionId, timestamp: nowIso6(), payload }];
+}
+function mapQwenCodeInputToRawEvents(input) {
+  switch (input.phase) {
+    case "start":
+      return make4(input.conversation_id, "session.started");
+    case "prompt":
+      return make4(input.conversation_id, "prompt.submitted", { prompt: input.prompt });
+    case "search":
+      return make4(input.conversation_id, "search.performed", { query: input.query });
+    case "read":
+      return make4(input.conversation_id, "file.read", { target: input.target });
+    case "edit":
+      return make4(input.conversation_id, "file.edited", { target: input.target });
+    case "patch":
+      return make4(input.conversation_id, "patch.applied", { target: input.target });
+    case "validate_ok":
+      return make4(input.conversation_id, "tests.passed", { command: input.command, majorCheck: true });
+    case "validate_fail":
+      return make4(input.conversation_id, "tests.failed", { command: input.command, majorCheck: true });
+    case "summary":
+      return make4(input.conversation_id, "summary.written", { summary: input.summary });
+    case "finish":
+      return make4(input.conversation_id, "session.ended");
+    default:
+      return [];
+  }
+}
+
+// ../runtime/src/hub.ts
+var HUB_MANIFEST_PATH = join2(resolveAcademyHomeDir(), "hub.json");
+function nowIso7() {
+  return (/* @__PURE__ */ new Date()).toISOString();
+}
+async function readHubManifest() {
+  try {
+    const raw = await readFile2(HUB_MANIFEST_PATH, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function mapAdapterInputToRawEvents(adapter, payload) {
+  switch (adapter) {
+    case "claude-code":
+      return mapClaudeHookInputToRawEvents(payload);
+    case "codex-cli":
+      return mapCodexInputToRawEvents(payload);
+    case "gemini-cli":
+      return mapGeminiInputToRawEvents(payload);
+    case "openai-cli":
+    case "openai-compatible":
+      return mapOpenAiCliInputToRawEvents(payload);
+    case "qwen-code":
+      return mapQwenCodeInputToRawEvents(payload);
+    case "generic-cli":
+      return mapGenericInputToRawEvents(payload);
+    default:
+      return [];
+  }
+}
+async function applyRawEventsLocally(rawEvents, target) {
+  const storePath = resolveStateFilePath(target);
+  const store = new FileStore(storePath);
+  const transaction = await store.transact(async (persisted) => {
+    const engine = new AcademyEngine(persisted);
+    for (const rawEvent of rawEvents) {
+      engine.process(rawEvent);
+    }
+    Object.assign(persisted, engine.snapshot);
+    return null;
+  });
+  return {
+    receipt: {
+      accepted: true,
+      via: "local",
+      rawEventCount: rawEvents.length,
+      storePath,
+      sessionId: rawEvents[0]?.sessionId
+    },
+    snapshot: transaction.state
+  };
+}
+async function dispatchBridgeEnvelopeLocally(envelope) {
+  const rawEvents = Array.isArray(envelope.events) ? envelope.events : envelope.adapter ? mapAdapterInputToRawEvents(envelope.adapter, envelope.payload) : [];
+  if (rawEvents.length === 0) {
+    return null;
+  }
+  return applyRawEventsLocally(rawEvents, envelope.target);
+}
+async function sendBridgeEnvelopeToHub(envelope) {
+  const manifest = await readHubManifest();
+  if (!manifest) {
+    return null;
+  }
+  try {
+    const response = await fetch(`http://${manifest.host}:${manifest.port}/v1/ingest`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${manifest.token}`
+      },
+      body: JSON.stringify({
+        ...envelope,
+        emittedAt: envelope.emittedAt ?? nowIso7()
+      })
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const receipt = await response.json();
+    return receipt;
+  } catch {
+    return null;
+  }
+}
+async function dispatchBridgeEnvelope(envelope) {
+  const viaHub = await sendBridgeEnvelopeToHub(envelope);
+  if (viaHub) {
+    return { receipt: viaHub };
+  }
+  const local = await dispatchBridgeEnvelopeLocally(envelope);
+  if (!local) {
+    const fallbackPath = resolveStateFilePath(envelope.target);
+    return {
+      receipt: {
+        accepted: false,
+        via: "local",
+        rawEventCount: 0,
+        storePath: fallbackPath
+      }
+    };
+  }
+  return local;
+}
+
 export {
   previewBurst,
   performBurst,
-  AcademyEngine,
+  resolveStateFilePath,
   FileStore,
-  mapClaudeHookInputToRawEvents,
   renderPersistedPanel,
   renderBurstResult,
-  renderSidecarPanel
+  renderSidecarPanel,
+  dispatchBridgeEnvelope
 };

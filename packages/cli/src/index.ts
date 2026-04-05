@@ -1,14 +1,18 @@
-import { AcademyEngine } from "@academy/runtime";
-import { FileStore } from "@academy/runtime";
-import { adapterCatalog, findAdapterDescriptor } from "@academy/runtime";
-import { mapCodexInputToRawEvents } from "@academy/runtime";
-import { mapClaudeHookInputToRawEvents } from "@academy/runtime";
-import { mapGeminiInputToRawEvents } from "@academy/runtime";
-import { mapGenericInputToRawEvents } from "@academy/runtime";
-import { mapOpenAiCliInputToRawEvents } from "@academy/runtime";
-import { mapQwenCodeInputToRawEvents } from "@academy/runtime";
-import { performBurst, previewBurst, renderBurstResult } from "@academy/runtime";
-import type { AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
+import {
+  AcademyEngine,
+  FileStore,
+  academyHubManifestPath,
+  adapterCatalog,
+  dispatchBridgeEnvelope,
+  findAdapterDescriptor,
+  performBurst,
+  previewBurst,
+  readHubManifest,
+  renderBurstResult,
+  resolveStateFilePath,
+  startAcademyHub,
+} from "@academy/runtime";
+import type { AcademyBridgeEnvelope, AdapterPlatform, PersistedState, RawEvent, StrategyMode } from "@academy/shared";
 import { renderLobby, renderPersistedPanel, renderSidecarPanel, renderUpdatePanel } from "./renderer.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -134,6 +138,17 @@ async function processRawEvents(rawEvents: RawEvent[], printPanel = false) {
   return {
     store,
     snapshot: transaction.state,
+  };
+}
+
+async function dispatchEnvelope(envelope: AcademyBridgeEnvelope) {
+  const result = await dispatchBridgeEnvelope(envelope);
+  const store = new FileStore(result.receipt.storePath);
+  const snapshot = result.snapshot ?? (await store.load());
+  return {
+    receipt: result.receipt,
+    store,
+    snapshot,
   };
 }
 
@@ -264,11 +279,14 @@ async function runBurst() {
 async function runHook() {
   const input = await readStdinText();
   const hookPayload = JSON.parse(input);
-  const rawEvents = mapClaudeHookInputToRawEvents(hookPayload);
-  if (rawEvents.length === 0) {
-    return;
-  }
-  await processRawEvents(rawEvents);
+  await dispatchEnvelope({
+    adapter: "claude-code",
+    payload: hookPayload,
+    source: "cli-hook",
+    target: {
+      workspace: typeof hookPayload.cwd === "string" ? hookPayload.cwd : process.cwd(),
+    },
+  });
 }
 
 function parseAdapter(input?: string): AdapterPlatform | null {
@@ -297,25 +315,6 @@ function parseAdapter(input?: string): AdapterPlatform | null {
   }
 }
 
-function mapAdapterPayload(adapter: AdapterPlatform, payload: unknown): RawEvent[] {
-  switch (adapter) {
-    case "claude-code":
-      return mapClaudeHookInputToRawEvents(payload as Record<string, unknown>);
-    case "codex-cli":
-      return mapCodexInputToRawEvents(payload as Record<string, unknown>);
-    case "gemini-cli":
-      return mapGeminiInputToRawEvents(payload as Record<string, unknown>);
-    case "openai-cli":
-      return mapOpenAiCliInputToRawEvents(payload as Record<string, unknown>);
-    case "qwen-code":
-      return mapQwenCodeInputToRawEvents(payload as Record<string, unknown>);
-    case "generic-cli":
-      return mapGenericInputToRawEvents(payload as Record<string, unknown>);
-    default:
-      return [];
-  }
-}
-
 async function runIngest() {
   const adapter = parseAdapter(process.argv[3]);
   if (!adapter) {
@@ -326,13 +325,18 @@ async function runIngest() {
 
   const input = await readStdinText();
   const payload = JSON.parse(input);
-  const rawEvents = mapAdapterPayload(adapter, payload);
-  if (rawEvents.length === 0) {
+  const result = await dispatchEnvelope({
+    adapter,
+    payload,
+    source: "cli-ingest",
+    target: {
+      workspace: process.cwd(),
+    },
+  });
+  if (!result.receipt.accepted || result.receipt.rawEventCount === 0) {
     console.log(`No raw events mapped for ${adapter}.`);
     return;
   }
-
-  const result = await processRawEvents(rawEvents);
   console.log(renderPersistedPanel(result.snapshot));
 }
 
@@ -349,13 +353,18 @@ async function runRelayFile() {
   const resolvedPath = resolveInputFile(filePath);
   const raw = await readFile(resolvedPath, "utf8");
   const payload = JSON.parse(raw.replace(/^\uFEFF/, "").trim());
-  const rawEvents = mapAdapterPayload(adapter, payload);
-  if (rawEvents.length === 0) {
+  const result = await dispatchEnvelope({
+    adapter,
+    payload,
+    source: "cli-relay-file",
+    target: {
+      workspace: process.cwd(),
+    },
+  });
+  if (!result.receipt.accepted || result.receipt.rawEventCount === 0) {
     console.log(`No raw events mapped for ${adapter}.`);
     return;
   }
-
-  const result = await processRawEvents(rawEvents);
   console.log(renderPersistedPanel(result.snapshot));
 }
 
@@ -368,6 +377,11 @@ async function runAdapters() {
   for (const descriptor of adapterCatalog) {
     console.log(`- ${descriptor.aliases[0]} => ${descriptor.label}`);
   }
+  console.log();
+  console.log("Recommended real-time path:");
+  console.log("- pnpm hub");
+  console.log("- pnpm emit codex < payload.json");
+  console.log("- pnpm emit gemini < payload.json");
   console.log();
   console.log("Pipe JSON into one:");
   console.log("- pnpm relay codex");
@@ -545,8 +559,9 @@ void main();
 }
 
 async function runDoctor() {
-  const store = new FileStore();
+  const store = new FileStore(resolveStateFilePath({ workspace: process.cwd() }));
   const persisted = await store.load();
+  const hub = await readHubManifest();
   const adapters = adapterCatalog.filter((item) => item.platform !== "generic-cli");
   const report = adapters.map((descriptor) => {
     const envVar = envVarForAdapter(descriptor.platform);
@@ -572,6 +587,14 @@ async function runDoctor() {
           arch: process.arch,
           node: process.version,
           statePath: store.path,
+          hub:
+            hub === null
+              ? null
+              : {
+                  host: hub.host,
+                  port: hub.port,
+                  manifestPath: academyHubManifestPath(),
+                },
           adapters: report,
           hero: {
             name: persisted.profile.name,
@@ -595,6 +618,7 @@ async function runDoctor() {
   console.log(`Platform: ${process.platform} ${process.arch}`);
   console.log(`Node: ${process.version}`);
   console.log(`State: ${store.path}`);
+  console.log(`Hub: ${hub ? `${hub.host}:${hub.port}` : "offline"} (${academyHubManifestPath()})`);
   console.log();
 
   for (const item of report) {
@@ -610,6 +634,42 @@ async function runDoctor() {
   console.log();
   console.log(`Hero: ${persisted.profile.name} Lv.${persisted.profile.level} ${persisted.profile.dominantProfession}`);
   console.log(`Burst cache: ~${persisted.burstBank.estimatedTokens} tok, wins ${persisted.burstBank.victories}, checks ${persisted.burstBank.validations}`);
+}
+
+async function runHub() {
+  const subcommand = process.argv[3] ?? "start";
+
+  if (subcommand === "status") {
+    const manifest = await readHubManifest();
+    if (process.argv.includes("--json")) {
+      console.log(JSON.stringify(manifest, null, 2));
+      return;
+    }
+    if (!manifest) {
+      console.log("Academy Hub is offline.");
+      console.log(`Manifest: ${academyHubManifestPath()}`);
+      return;
+    }
+    console.log("Academy Hub is online.");
+    console.log(`Address: http://${manifest.host}:${manifest.port}`);
+    console.log(`Manifest: ${academyHubManifestPath()}`);
+    console.log(`PID: ${manifest.pid}`);
+    console.log(`Started: ${manifest.startedAt}`);
+    return;
+  }
+
+  const handle = await startAcademyHub();
+  console.log(`Academy Hub listening on http://${handle.manifest.host}:${handle.manifest.port}`);
+  console.log(`Manifest: ${academyHubManifestPath()}`);
+  console.log("Keep this process open. Claude/Codex/Gemini/Qwen wrappers can now feed one shared game runtime.");
+
+  const shutdown = async () => {
+    await handle.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 async function runBridgeInit() {
@@ -766,15 +826,21 @@ async function runWrap(providerOverride?: string) {
   const commandText = `${command} ${childArgs.join(" ")}`.trim();
   const majorCheck = commandLooksLikeMajorCheck(command, childArgs);
 
-  await processRawEvents([
-    createEvent(sessionId, "session.started", { platform: adapter }),
-    ...(prompt ? [createEvent(sessionId, "prompt.submitted", { prompt, platform: adapter })] : []),
-    createEvent(sessionId, "command.started", {
-      command: commandText,
-      platform: adapter,
-      majorCheck,
-    }),
-  ]);
+  await dispatchEnvelope({
+    events: [
+      createEvent(sessionId, "session.started", { platform: adapter }),
+      ...(prompt ? [createEvent(sessionId, "prompt.submitted", { prompt, platform: adapter })] : []),
+      createEvent(sessionId, "command.started", {
+        command: commandText,
+        platform: adapter,
+        majorCheck,
+      }),
+    ],
+    source: "cli-wrap-start",
+    target: {
+      workspace: process.cwd(),
+    },
+  });
 
   const child = spawn(command, childArgs, {
     cwd: process.cwd(),
@@ -809,7 +875,13 @@ async function runWrap(providerOverride?: string) {
 
   endingEvents.push(createEvent(sessionId, "session.ended", { platform: adapter }));
 
-  const result = await processRawEvents(endingEvents);
+  const result = await dispatchEnvelope({
+    events: endingEvents,
+    source: "cli-wrap-end",
+    target: {
+      workspace: process.cwd(),
+    },
+  });
   console.log(renderPersistedPanel(result.snapshot));
   process.exitCode = exitCode;
 }
@@ -847,6 +919,7 @@ async function main() {
       return;
     case "ingest":
     case "relay":
+    case "emit":
       await runIngest();
       return;
     case "relay-file":
@@ -866,6 +939,9 @@ async function main() {
       return;
     case "doctor":
       await runDoctor();
+      return;
+    case "hub":
+      await runHub();
       return;
     case "wrap":
       await runWrap();

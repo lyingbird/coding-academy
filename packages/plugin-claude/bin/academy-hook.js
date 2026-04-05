@@ -1,8 +1,6 @@
 import {
-  AcademyEngine,
-  FileStore,
-  mapClaudeHookInputToRawEvents
-} from "./chunk-7YEMBPM5.js";
+  dispatchBridgeEnvelope
+} from "./chunk-HKLIPPRN.js";
 
 // src/academy-hook.ts
 async function readStdinText() {
@@ -16,16 +14,13 @@ async function readStdinText() {
 async function main() {
   const input = await readStdinText();
   const payload = JSON.parse(input);
-  const rawEvents = mapClaudeHookInputToRawEvents(payload);
-  if (rawEvents.length === 0) {
-    return;
-  }
-  const store = new FileStore();
-  const state = await store.load();
-  const engine = new AcademyEngine(state);
-  for (const rawEvent of rawEvents) {
-    engine.process(rawEvent);
-  }
-  await store.save(engine.snapshot);
+  await dispatchBridgeEnvelope({
+    adapter: "claude-code",
+    payload,
+    source: "claude-hook",
+    target: {
+      workspace: typeof payload.cwd === "string" ? payload.cwd : process.cwd()
+    }
+  });
 }
 void main();

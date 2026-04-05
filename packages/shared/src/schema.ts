@@ -212,3 +212,35 @@ export interface PersistedState {
   burstBank: BurstBank;
   recentBursts: BurstRecap[];
 }
+
+export interface AcademyBridgeTarget {
+  workspace?: string;
+  storageDir?: string;
+  stateFile?: string;
+}
+
+export interface AcademyBridgeEnvelope {
+  adapter?: AdapterPlatform;
+  payload?: unknown;
+  events?: RawEvent[];
+  target?: AcademyBridgeTarget;
+  source?: string;
+  emittedAt?: string;
+}
+
+export interface AcademyHubManifest {
+  host: string;
+  port: number;
+  token: string;
+  pid: number;
+  startedAt: string;
+  version: 1;
+}
+
+export interface AcademyDispatchReceipt {
+  accepted: boolean;
+  via: "hub" | "local";
+  rawEventCount: number;
+  storePath: string;
+  sessionId?: string;
+}

@@ -11,6 +11,44 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - combos, clues, tiny chests, and monster journal entries keep the feedback loop hot
 - vibecoding downtime becomes a low-pressure charge phase instead of dead air
 
+## Core Communication Model
+
+Coding Academy now treats communication with AI CLIs as a first-class product problem.
+
+The runtime is split into three layers:
+
+- `host`
+  - Claude Code, Codex CLI, Gemini CLI, OpenAI-compatible shells, Qwen, or domestic wrappers
+- `adapter`
+  - translates host-specific events into Academy raw events
+- `academy hub`
+  - a local loopback event bus that feeds one shared game runtime and state file
+
+That means the game logic only exists once.
+
+Different AI tools do **not** each get their own combat logic.
+They only emit lifecycle events such as:
+
+- prompt submitted
+- files read
+- search performed
+- patch applied
+- command started
+- tests passed / failed
+- task completed
+
+The Academy Hub then turns those events into:
+
+- scouting
+- enemy encounters
+- damage
+- victories
+- burst charge
+- loot
+- check-in recaps
+
+If the hub is offline, wrappers and hooks fall back to local state writes. If the hub is online, every host can feed the same hero run.
+
 ## Project Layout
 
 - `packages/shared`
@@ -34,6 +72,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 
 - `pnpm install`
 - `pnpm start`
+- `pnpm hub`
 - `pnpm play`
 - `pnpm demo`
 - `pnpm status`
@@ -47,6 +86,7 @@ It turns real Claude Code work into a tiny auto-battling adventure:
 - `pnpm openai`
 - `pnpm ingest`
 - `pnpm relay`
+- `pnpm emit`
 - `pnpm relay:file`
 - `pnpm adapters`
 - `pnpm adapter`
@@ -83,6 +123,46 @@ Current adapter layer already includes starter mappers for:
 - generic CLI payloads
 
 That means future wrappers for domestic tools or OpenAI-compatible agent shells can plug into the same reward loop instead of forking the game.
+
+## Multi-CLI Communication
+
+The recommended path for real multi-CLI use is:
+
+1. start the local Academy Hub once
+2. let Claude/Codex/Gemini/Qwen wrappers emit events into it
+3. keep one sidecar companion watching the resulting state
+
+Start the hub:
+
+```bash
+pnpm hub
+```
+
+Inspect hub status:
+
+```bash
+pnpm hub status
+pnpm health -- --json
+```
+
+Emit provider payloads into the shared runtime:
+
+```bash
+pnpm emit codex
+pnpm emit gemini
+pnpm emit qwen
+pnpm emit openai
+```
+
+`emit` reads provider JSON from stdin, maps it through the adapter layer, and pushes it into the Academy Hub when available.
+
+If the hub is not running, the same command still works by writing directly to the workspace state file.
+
+This is the key compatibility contract for future GPT or domestic AI wrappers:
+
+- emit JSON
+- map it through an adapter
+- feed the local Academy Hub
 
 ## Install
 

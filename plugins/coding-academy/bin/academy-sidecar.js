@@ -1,11 +1,12 @@
 import {
   FileStore,
-  renderSidecarPanel
-} from "./chunk-7YEMBPM5.js";
+  renderSidecarPanel,
+  resolveStateFilePath
+} from "./chunk-HKLIPPRN.js";
 
 // src/academy-sidecar.ts
 async function main() {
-  const store = new FileStore();
+  const store = new FileStore(resolveStateFilePath({ workspace: process.env.ACADEMY_WORKSPACE ?? process.cwd() }));
   let lastRendered = "";
   while (true) {
     const state = await store.load();

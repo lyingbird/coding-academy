@@ -12,7 +12,7 @@ function commandExists(command) {
   return result.status === 0;
 }
 function launchWindows(scriptPath) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
   if (commandExists("wt")) {
     const child2 = spawn(
       "wt",
@@ -31,7 +31,7 @@ function launchWindows(scriptPath) {
   return "Opened sidecar in a separate PowerShell window.";
 }
 function launchMac(scriptPath) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
   if (process.env.TMUX && commandExists("tmux")) {
     const child = spawn("tmux", ["split-window", "-h", `node '${scriptPath}'`], {
       detached: true,
@@ -54,7 +54,7 @@ function launchMac(scriptPath) {
   throw new Error("Could not find tmux or osascript on this macOS machine.");
 }
 function launchLinux(scriptPath) {
-  const env = { ...process.env };
+  const env = { ...process.env, ACADEMY_WORKSPACE: process.cwd() };
   const terminals = ["x-terminal-emulator", "gnome-terminal", "konsole"];
   for (const terminal of terminals) {
     if (!commandExists(terminal)) {
