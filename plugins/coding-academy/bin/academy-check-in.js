@@ -18,6 +18,8 @@ async function main() {
   if (result.power > 0) {
     process.stdout.write(`Spent effort tag: ${preview.effortTag}
 `);
+  } else {
+    process.stdout.write("Tip: just keep coding for a bit, then come back when the buddy has bottled some effort.\n");
   }
 }
 void main();
